@@ -1,6 +1,8 @@
 package com.profecuaderno.app.ui
 
 import android.app.Activity
+import android.os.Build
+import android.os.Environment
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.biometric.BiometricManager
@@ -20,8 +22,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import com.profecuaderno.app.data.TeacherDbHelper
 import com.profecuaderno.app.security.AppSecurityManager
+import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -32,6 +36,7 @@ fun SecurityBackupScreen(db: TeacherDbHelper, onRestored: () -> Unit) {
     var biometric by remember { mutableStateOf(AppSecurityManager.isBiometricEnabled(context)) }
     var showPinDialog by remember { mutableStateOf(false) }
     var showFileHelp by remember { mutableStateOf(false) }
+    var showRestoreBrowser by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
 
     val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -64,14 +69,26 @@ fun SecurityBackupScreen(db: TeacherDbHelper, onRestored: () -> Unit) {
 
     fun launchBackup() {
         val stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmm"))
-        val intent = DocumentPickerCompat.createDocumentIntent(
-            "application/octet-stream",
-            "El_Cuaderno_del_Maestro_$stamp.pcbackup"
-        )
-        if (!DocumentPickerCompat.canResolve(context, intent)) {
-            showFileHelp = true
+
+        if (Build.VERSION.SDK_INT >= 30 && Environment.isExternalStorageManager()) {
+            val dir = File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                "La Carpeta del Docente Offline"
+            ).apply { mkdirs() }
+            val file = File(dir, "La_Carpeta_del_Docente_$stamp.pcbackup")
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            message = if (db.exportBackup(uri)) {
+                "Copia guardada en Descargas/La Carpeta del Docente Offline."
+            } else {
+                "No se pudo crear la copia de seguridad."
+            }
             return
         }
+
+        val intent = DocumentPickerCompat.createDocumentIntent(
+            "application/octet-stream",
+            "La_Carpeta_del_Docente_$stamp.pcbackup"
+        )
         ExternalActivityGuard.active = true
         runCatching { backupLauncher.launch(intent) }
             .onFailure {
@@ -81,14 +98,15 @@ fun SecurityBackupScreen(db: TeacherDbHelper, onRestored: () -> Unit) {
     }
 
     fun launchRestore() {
+        if (Build.VERSION.SDK_INT >= 30 && Environment.isExternalStorageManager()) {
+            showRestoreBrowser = true
+            return
+        }
+
         val intent = DocumentPickerCompat.chooserIntent(
             arrayOf("application/octet-stream", "application/x-sqlite3", "application/vnd.sqlite3", "*/*"),
             "Seleccionar copia de seguridad"
         )
-        if (!DocumentPickerCompat.canResolve(context, intent)) {
-            showFileHelp = true
-            return
-        }
         ExternalActivityGuard.active = true
         runCatching { restoreLauncher.launch(intent) }
             .onFailure {
@@ -117,9 +135,8 @@ fun SecurityBackupScreen(db: TeacherDbHelper, onRestored: () -> Unit) {
                 Icon(Icons.Default.CloudOff, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Funciona sin internet", style = MaterialTheme.typography.titleMedium)
-                    Text("Tus datos se guardan primero en este dispositivo. No necesitas Google Console para usar esta versión.", style = MaterialTheme.typography.bodySmall)
-                    Text("Más adelante podremos añadir sincronización cuando esté disponible, sin quitar el funcionamiento offline.", style = MaterialTheme.typography.labelSmall)
+                    Text("100 % local y sin internet", style = MaterialTheme.typography.titleMedium)
+                    Text("Esta versión no comparte ni sincroniza datos. La información permanece en este dispositivo y en las copias que tú exportes.", style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -202,7 +219,7 @@ fun SecurityBackupScreen(db: TeacherDbHelper, onRestored: () -> Unit) {
                     Spacer(Modifier.width(6.dp))
                     Text("Restaurar copia")
                 }
-                Text("La copia no incluye el PDF de la guía si ese archivo está guardado fuera de la app.", style = MaterialTheme.typography.bodySmall)
+                Text("Con acceso a archivos, las copias se guardan directamente en Descargas y pueden restaurarse con el explorador interno.", style = MaterialTheme.typography.bodySmall)
             }
         }
 
@@ -212,11 +229,25 @@ fun SecurityBackupScreen(db: TeacherDbHelper, onRestored: () -> Unit) {
         Spacer(Modifier.height(24.dp))
     }
 
+    if (showRestoreBrowser) {
+        LocalFileBrowserDialog(
+            title = "Restaurar copia local",
+            allowedExtensions = setOf("pcbackup", "db", "sqlite", "sqlite3"),
+            onDismiss = { showRestoreBrowser = false },
+            onFileSelected = { uri ->
+                showRestoreBrowser = false
+                val ok = db.importBackup(uri)
+                message = if (ok) "Copia restaurada correctamente." else "No se pudo restaurar esa copia."
+                if (ok) onRestored()
+            }
+        )
+    }
+
     if (showFileHelp) {
         AlertDialog(
             onDismissRequest = { showFileHelp = false },
-            title = { Text("Selector de archivos no disponible") },
-            text = { Text("Android no encontró una aplicación capaz de abrir o guardar documentos. Habilita o instala un administrador de archivos y vuelve a intentarlo.") },
+            title = { Text("Acceso a archivos") },
+            text = { Text("El selector de Android no respondió. Concede 'Acceso a todos los archivos' desde la pantalla de permisos de la app y podrás usar el explorador interno.") },
             confirmButton = {
                 TextButton(onClick = {
                     showFileHelp = false
