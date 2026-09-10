@@ -18,7 +18,6 @@ jobs:
           python3 <<'PY'
           from pathlib import Path
 
-          # Guide: copy chosen file to app-private storage before persisting URI.
           p = Path('app/src/main/java/com/profecuaderno/app/ui/GuideScreen.kt')
           s = p.read_text()
           old = '''        if (readable) {
@@ -44,7 +43,6 @@ jobs:
               s = s.replace(old, new)
           p.write_text(s)
 
-          # GroupFiles: internal browser when broad access exists + durable copies.
           p = Path('app/src/main/java/com/profecuaderno/app/ui/GroupFilesScreen.kt')
           s = p.read_text()
           if 'import android.os.Build' not in s:
@@ -70,16 +68,15 @@ jobs:
             }'''
           if old in s:
               s = s.replace(old, new)
-          old = 'Button(onClick = { picker.launch(DocumentImportPolicy.mimeTypes) }, modifier = Modifier.fillMaxWidth()) {'
-          new = '''Button(onClick = {
+          old_button = 'Button(onClick = { picker.launch(DocumentImportPolicy.mimeTypes) }, modifier = Modifier.fillMaxWidth()) {'
+          new_button = '''Button(onClick = {
                 if (Build.VERSION.SDK_INT >= 30 && Environment.isExternalStorageManager()) showLocalBrowser = true
                 else runCatching { picker.launch(DocumentImportPolicy.mimeTypes) }
                     .onFailure { message = "No se pudo abrir el selector. Concede acceso a archivos en Permisos para usar el explorador interno." }
             }, modifier = Modifier.fillMaxWidth()) {'''
-          if old in s:
-              s = s.replace(old, new)
+          if old_button in s:
+              s = s.replace(old_button, new_button)
           marker = '    LazyColumn(\n'
-          # Dialog must be outside LazyColumn; insert immediately before it.
           if 'title = "Agregar documento al grupo"' not in s:
               dialog = '''    if (showLocalBrowser) {
         LocalFileBrowserDialog(
@@ -101,7 +98,6 @@ jobs:
               s = s.replace(marker, dialog + marker, 1)
           p.write_text(s)
 
-          # Security/backup: do not depend on broken system picker when all-files access is available.
           p = Path('app/src/main/java/com/profecuaderno/app/ui/SecurityBackupScreen.kt')
           s = p.read_text()
           if 'import android.content.Intent' not in s:
@@ -120,7 +116,6 @@ jobs:
             return
         }'''
           if needle in s:
-              # avoid duplicate stamp line after replacement
               s = s.replace(needle, repl)
           needle = '''    fun launchRestore() {
         val intent = DocumentPickerCompat.chooserIntent('''
@@ -160,3 +155,5 @@ jobs:
           git add app/src/main/java/com/profecuaderno/app/ui/GuideScreen.kt app/src/main/java/com/profecuaderno/app/ui/GroupFilesScreen.kt app/src/main/java/com/profecuaderno/app/ui/SecurityBackupScreen.kt
           git diff --cached --quiet || git commit -m "Finish offline file imports and backup fallback"
           git push
+
+# retrigger 2
