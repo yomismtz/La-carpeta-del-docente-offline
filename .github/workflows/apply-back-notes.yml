@@ -1,0 +1,40 @@
+name: Apply back navigation and notes
+on:
+  push:
+    paths: ['.github/workflows/apply-back-notes.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/src/main/java/com/profecuaderno/app/ui/AppShell.kt')
+          s=p.read_text()
+          if 'import androidx.activity.compose.BackHandler' not in s:
+              s=s.replace('package com.profecuaderno.app.ui\n\n','package com.profecuaderno.app.ui\n\nimport androidx.activity.compose.BackHandler\n')
+          s=s.replace('    GROUP_FILES("Archivos del grupo"),\n','    GROUP_FILES("Archivos del grupo"),\n    NOTES("Bloc de notas"),\n')
+          s=s.replace('Screen.RUBRICS, Screen.GUIDE, Screen.GROUP_FILES, Screen.REPORTS -> Screen.PROGRAM_HOME','Screen.RUBRICS, Screen.GUIDE, Screen.GROUP_FILES, Screen.NOTES, Screen.REPORTS -> Screen.PROGRAM_HOME')
+          if 'BackHandler(enabled = screen != Screen.HOME)' not in s:
+              s=s.replace('    Scaffold(\n','    BackHandler(enabled = screen != Screen.HOME) { goBack() }\n\n    Scaffold(\n',1)
+          s=s.replace('                        onFiles = { screen = Screen.GROUP_FILES },\n                        onReports = { screen = Screen.REPORTS }','                        onFiles = { screen = Screen.GROUP_FILES },\n                        onNotes = { screen = Screen.NOTES },\n                        onReports = { screen = Screen.REPORTS }')
+          s=s.replace('                Screen.GROUP_FILES -> RequirePeriod(period) { GroupFilesScreen(period!!) }\n','                Screen.GROUP_FILES -> RequirePeriod(period) { GroupFilesScreen(period!!) }\n                Screen.NOTES -> NotesScreen()\n')
+          p.write_text(s)
+
+          p=Path('app/src/main/java/com/profecuaderno/app/ui/ProfileAndHome.kt')
+          s=p.read_text()
+          s=s.replace('onGuide: () -> Unit, onFiles: () -> Unit, onReports: () -> Unit)', 'onGuide: () -> Unit, onFiles: () -> Unit, onNotes: () -> Unit, onReports: () -> Unit)')
+          s=s.replace('FolderAction("Planeación", "Guía, documentos y apoyo docente", Icons.Default.Assignment, Sky, onGuide), FolderAction("Archivos del grupo", "PDF, CSV, Excel, Word y TXT", Icons.Default.MenuBook, Mint, onFiles), FolderAction("Reportes",', 'FolderAction("Planeación", "Guía, documentos y apoyo docente", Icons.Default.Assignment, Sky, onGuide), FolderAction("Archivos del grupo", "PDF, CSV, Excel, Word y TXT", Icons.Default.MenuBook, Mint, onFiles), FolderAction("Bloc de notas", "Teclado, dedo, stylus o pen", Icons.Default.Assignment, Cream, onNotes), FolderAction("Reportes",')
+          p.write_text(s)
+          PY
+      - run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app/src/main/java/com/profecuaderno/app/ui/AppShell.kt app/src/main/java/com/profecuaderno/app/ui/ProfileAndHome.kt
+          git diff --cached --quiet || git commit -m "Use system back navigation and add notes folder"
+          git push
