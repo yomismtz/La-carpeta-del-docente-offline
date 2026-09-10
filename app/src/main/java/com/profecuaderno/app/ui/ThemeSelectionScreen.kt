@@ -4,7 +4,9 @@ import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Language
@@ -19,106 +21,48 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun ThemeSelectionScreen(
-    initial: AgendaThemeStyle = AgendaThemeStyle.MINT_LAVENDER,
-    onSelected: (AgendaThemeStyle) -> Unit,
-    onCancel: (() -> Unit)? = null
-) {
+fun ThemeSelectionScreen(initial: AgendaThemeStyle = AgendaThemeStyle.MINT_LAVENDER, onSelected: (AgendaThemeStyle) -> Unit, onCancel: (() -> Unit)? = null) {
     val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("agenda_preferences", 0) }
     var selected by remember(initial) { mutableStateOf(initial) }
+    var darkMode by remember { mutableStateOf(prefs.getBoolean("ui_dark", false)) }
+    var fontScale by remember { mutableFloatStateOf(prefs.getFloat("font_scale", 1f)) }
+    var fontStyle by remember { mutableStateOf(AppFontStyle.fromKey(prefs.getString("font_style", null))) }
     val language = LocalAppLanguage.current
 
-    Column(
-        modifier = Modifier.fillMaxSize().padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Palette, null, modifier = Modifier.size(34.dp))
-            Spacer(Modifier.width(10.dp))
-            Column {
-                Text(language.text("Hazla tuya", "Make it yours"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text(language.text("Elige cómo quieres ver tu agenda. Podrás cambiarlo cuando quieras.", "Choose how you want your planner to look. You can change it anytime."))
-            }
+            Icon(Icons.Default.Palette, null, modifier = Modifier.size(34.dp)); Spacer(Modifier.width(10.dp))
+            Column { Text(language.text("Apariencia", "Appearance"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text(language.text("Color, modo y tipografía.", "Color, mode and typography.")) }
         }
 
-        ElevatedCard(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Language, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text(language.text("Idioma / Language", "Language / Idioma"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AppLanguage.entries.forEach { item ->
-                        FilterChip(
-                            selected = language == item,
-                            onClick = {
-                                if (language != item) {
-                                    AppLanguagePrefs.save(context, item)
-                                    (context as? Activity)?.recreate()
-                                }
-                            },
-                            label = { Text(item.label) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-            }
-        }
+        ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Language,null); Spacer(Modifier.width(8.dp)); Text("Idioma / Language", style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold) }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(8.dp)) { AppLanguage.entries.forEach { item -> FilterChip(selected=language==item,onClick={ if(language!=item){AppLanguagePrefs.save(context,item);(context as? Activity)?.recreate()} },label={Text(item.label)},modifier=Modifier.weight(1f)) } }
+        } }
 
-        AgendaThemeStyle.entries.forEach { style ->
-            ThemePreviewCard(style = style, selected = style == selected, onClick = { selected = style })
-        }
+        ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement=Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically) { Column(Modifier.weight(1f)){Text(language.text("Modo oscuro","Dark mode"),fontWeight=FontWeight.Bold);Text(language.text("También puedes usar modo claro.","You can also use light mode."),style=MaterialTheme.typography.bodySmall)}; Switch(checked=darkMode,onCheckedChange={darkMode=it}) }
+            Text(language.text("Tamaño de letra","Font size"),fontWeight=FontWeight.Bold)
+            Slider(value=fontScale,onValueChange={fontScale=it},valueRange=.85f..1.35f,steps=4)
+            Text(language.text("Estilo de letra","Font style"),fontWeight=FontWeight.Bold)
+            AppFontStyle.entries.forEach { f -> FilterChip(selected=fontStyle==f,onClick={fontStyle=f},label={Text(f.label)},modifier=Modifier.fillMaxWidth()) }
+        } }
 
-        Spacer(Modifier.weight(1f))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (onCancel != null) {
-                OutlinedButton(
-                    onClick = onCancel,
-                    modifier = Modifier.weight(1f).height(54.dp),
-                    shape = RoundedCornerShape(18.dp)
-                ) { Text(language.text("Cancelar", "Cancel")) }
-            }
-            Button(
-                onClick = { onSelected(selected) },
-                modifier = Modifier.weight(1f).height(54.dp),
-                shape = RoundedCornerShape(18.dp)
-            ) { Text(language.text("Usar este estilo", "Use this style"), fontWeight = FontWeight.SemiBold) }
+        Text(language.text("Paleta de color","Color palette"), style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)
+        AgendaThemeStyle.entries.forEach { style -> ThemePreviewCard(style, style==selected){selected=style} }
+
+        Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+            if(onCancel!=null) OutlinedButton(onClick=onCancel,modifier=Modifier.weight(1f).height(54.dp)){Text(language.text("Cancelar","Cancel"))}
+            Button(onClick={ prefs.edit().putBoolean("ui_dark",darkMode).putFloat("font_scale",fontScale).putString("font_style",fontStyle.key).apply(); onSelected(selected); (context as? Activity)?.recreate() },modifier=Modifier.weight(1f).height(54.dp)){Text(language.text("Aplicar","Apply"),fontWeight=FontWeight.SemiBold)}
         }
+        Spacer(Modifier.height(24.dp))
     }
 }
 
 @Composable
-private fun ThemePreviewCard(style: AgendaThemeStyle, selected: Boolean, onClick: () -> Unit) {
-    val language = LocalAppLanguage.current
-    val colors = when (style) {
-        AgendaThemeStyle.GRAPHITE_BLUE -> listOf(Color(0xFF1D2733), Color(0xFF234A73), Color(0xFF9CA7B2))
-        AgendaThemeStyle.SUNSET_GARDEN -> listOf(Color(0xFFD39A16), Color(0xFFB93A32), Color(0xFF3F7B4E))
-        AgendaThemeStyle.BOLD_CLASSIC -> listOf(Color(0xFFB52F3A), Color(0xFF245C9A), Color(0xFFD65B2B))
-        AgendaThemeStyle.MINT_LAVENDER -> listOf(Color(0xFF7654A8), Color(0xFF50BDB3), Color(0xFF319DA5))
-        AgendaThemeStyle.PINK_BLUE -> listOf(Color(0xFFC44F82), Color(0xFF4777B8), Color(0xFF7B68B5))
-        AgendaThemeStyle.GRAYSCALE -> listOf(Color(0xFF202124), Color(0xFF666A70), Color(0xFFD5D7DA))
-        AgendaThemeStyle.MULTICOLOR -> listOf(Color(0xFF5367C7), Color(0xFFDB5E87), Color(0xFF3C9B72))
-    }
-
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                colors.forEach { color -> Box(Modifier.size(34.dp).background(color, RoundedCornerShape(10.dp))) }
-            }
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text(style.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text(style.subtitle, style = MaterialTheme.typography.bodySmall)
-            }
-            if (selected) Icon(Icons.Default.CheckCircle, contentDescription = language.text("Seleccionado", "Selected"), tint = colors[1])
-        }
-    }
+private fun ThemePreviewCard(style: AgendaThemeStyle, selected:Boolean, onClick:()->Unit) {
+    val colors=when(style){
+        AgendaThemeStyle.GRAPHITE_BLUE->listOf(Color(0xFF0B4F6C),Color(0xFF263238),Color(0xFF90A4AE)); AgendaThemeStyle.SUNSET_GARDEN->listOf(Color(0xFFC99500),Color(0xFF2E6B3A),Color(0xFF8A3B12)); AgendaThemeStyle.BOLD_CLASSIC->listOf(Color(0xFF003F88),Color(0xFFD14900),Color(0xFFB00020)); AgendaThemeStyle.MINT_LAVENDER->listOf(Color(0xFF6B3FA0),Color(0xFF008C7A),Color(0xFF007C91)); AgendaThemeStyle.PINK_BLUE->listOf(Color(0xFFB00063),Color(0xFF2367B1),Color(0xFF6A3D7C)); AgendaThemeStyle.GRAYSCALE->listOf(Color(0xFF202124),Color(0xFF777777),Color(0xFFDDDDDD)); AgendaThemeStyle.MULTICOLOR->listOf(Color(0xFF3F37C9),Color(0xFFE45756),Color(0xFF2A9D65)) }
+    ElevatedCard(Modifier.fillMaxWidth().clickable(onClick=onClick), shape=RoundedCornerShape(20.dp)) { Row(Modifier.fillMaxWidth().padding(14.dp),verticalAlignment=Alignment.CenterVertically){ Row(horizontalArrangement=Arrangement.spacedBy(5.dp)){colors.forEach{Box(Modifier.size(34.dp).background(it,RoundedCornerShape(9.dp)))}};Spacer(Modifier.width(12.dp));Column(Modifier.weight(1f)){Text(style.title,fontWeight=FontWeight.SemiBold);Text(style.subtitle,style=MaterialTheme.typography.bodySmall)};if(selected)Icon(Icons.Default.CheckCircle,"Seleccionado") } }
 }
