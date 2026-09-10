@@ -69,7 +69,7 @@ fun GuideScreen(
         val mime = runCatching { context.contentResolver.getType(uri) }.getOrNull()
         val supportedByMime = mime != null && DocumentImportPolicy.mimeTypes.contains(mime)
         if (!DocumentImportPolicy.isSupported(displayName) && !supportedByMime) {
-            pickerMessage = "Formato no compatible. Elige PDF, CSV, XLS, XLSX, DOC, DOCX o TXT."
+            pickerMessage = "Formato no compatible. Elige PDF, Word, TXT o una imagen JPG, PNG, WEBP, HEIC/HEIF."
             return
         }
 
@@ -131,7 +131,7 @@ fun GuideScreen(
                         Text("Guía / planeación", style = MaterialTheme.typography.titleLarge)
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text("Aquí puedes conservar la guía, programa o planeación del curso en PDF, CSV, Excel, Word o TXT y usarla como apoyo para organizar tus actividades.")
+                    Text("Puedes importar una planeación en PDF, Word, TXT o imagen. La app buscará fechas en el texto y usará reconocimiento OCR cuando el PDF o la imagen no tengan texto extraíble.")
                 }
             }
         }
@@ -181,7 +181,7 @@ fun GuideScreen(
                                     selectedSuggestions = found.indices.toSet()
                                     analyzing = false
                                     analysisMessage = if (found.isEmpty()) {
-                                        "No encontré fechas legibles automáticamente. Si el PDF es una imagen escaneada, esta versión no puede extraer su texto."
+                                        "No encontré fechas reconocibles. La app revisó el texto disponible y, para PDF o imágenes, también intentó reconocimiento OCR. Revisa que las fechas sean visibles y tengan un formato como 10/09/2026, 10 de septiembre de 2026 o 10 sep."
                                     } else "Encontré ${found.size} posibles fechas. Revisa cuáles quieres agregar."
                                 }
                             }
@@ -241,7 +241,7 @@ fun GuideScreen(
     if (showLocalBrowser) {
         LocalFileBrowserDialog(
             title = "Seleccionar documento",
-            allowedExtensions = setOf("pdf", "csv", "xls", "xlsx", "doc", "docx", "txt"),
+            allowedExtensions = setOf("pdf", "doc", "docx", "txt", "jpg", "jpeg", "png", "webp", "heic", "heif"),
             onDismiss = { showLocalBrowser = false },
             onFileSelected = { uri ->
                 showLocalBrowser = false
