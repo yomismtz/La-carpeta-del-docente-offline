@@ -18,21 +18,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Save offline-only files
-        run: |
-          cp .github/workflows/refresh-offline-copy.yml /tmp/refresh-offline-copy.yml
-          [ -f .github/workflows/pages.yml ] && cp .github/workflows/pages.yml /tmp/pages.yml || true
-          [ -f privacy-policy.html ] && cp privacy-policy.html /tmp/privacy-policy.html || true
-          [ -f index.html ] && cp index.html /tmp/index.html || true
-
       - name: Fetch connected teacher app
         run: git clone --depth 1 https://github.com/yomismtz/ProfeCuaderno.git /tmp/teacher
 
-      - name: Replace project with teacher app base
+      - name: Replace app source while preserving offline site and workflows
         run: |
-          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          find . -mindepth 1 -maxdepth 1 \
+            ! -name .git \
+            ! -name .github \
+            ! -name privacy-policy.html \
+            ! -name index.html \
+            -exec rm -rf {} +
           rsync -a --exclude='.git' --exclude='.github' /tmp/teacher/ ./
-          mkdir -p .github/workflows
 
       - name: Make this build fully offline and independent
         run: |
@@ -75,52 +72,10 @@ jobs:
           </vector>
           XML
 
-      - name: Restore offline workflows and privacy site
-        run: |
-          cp /tmp/refresh-offline-copy.yml .github/workflows/refresh-offline-copy.yml
-          [ -f /tmp/pages.yml ] && cp /tmp/pages.yml .github/workflows/pages.yml || true
-          [ -f /tmp/privacy-policy.html ] && cp /tmp/privacy-policy.html privacy-policy.html || true
-          [ -f /tmp/index.html ] && cp /tmp/index.html index.html || true
-          rm -f .github/workflows/add-team-formation.yml
-          cat > .github/workflows/build-apk.yml <<'YML'
-          name: Build Offline Android APK
-
-          on:
-            workflow_dispatch:
-            push:
-              branches: [ "main", "master" ]
-
-          jobs:
-            build:
-              runs-on: ubuntu-latest
-              steps:
-                - uses: actions/checkout@v4
-                - name: Set up Java 17
-                  uses: actions/setup-java@v5
-                  with:
-                    distribution: temurin
-                    java-version: '17'
-                - name: Set up Gradle
-                  uses: gradle/actions/setup-gradle@v4
-                  with:
-                    gradle-version: '8.13'
-                - name: Run unit tests
-                  run: gradle :app:testDebugUnitTest --stacktrace
-                - name: Run Android lint
-                  run: gradle :app:lintDebug --stacktrace
-                - name: Build debug APK
-                  run: gradle :app:assembleDebug --stacktrace
-                - name: Upload APK
-                  uses: actions/upload-artifact@v4
-                  with:
-                    name: La-Carpeta-del-Docente-Offline-debug-apk
-                    path: app/build/outputs/apk/debug/app-debug.apk
-          YML
-
       - name: Commit offline edition
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
+          git add -A ':!.github'
           git commit -m "Refresh complete offline teacher edition with team formation" || exit 0
           git push
