@@ -33,6 +33,8 @@ class MainActivity : FragmentActivity() {
                     val teacher = remember(refresh) { db.getTeacher() }
                     var unlocked by remember { mutableStateOf(!AppSecurityManager.isLockEnabled(context)) }
                     val lifecycleOwner = LocalLifecycleOwner.current
+                    val permissionPrefs = remember { context.getSharedPreferences("permission_setup", 0) }
+                    var showPermissionSetup by remember { mutableStateOf(!permissionPrefs.getBoolean("completed", false)) }
 
                     DisposableEffect(lifecycleOwner) {
                         val observer = LifecycleEventObserver { _, event ->
@@ -46,6 +48,10 @@ class MainActivity : FragmentActivity() {
                         when {
                             !unlocked && AppSecurityManager.isLockEnabled(context) -> AppLockScreen(onUnlocked = { unlocked = true })
                             teacher == null -> TeacherSetupScreen(onSave = { db.saveTeacher(it); refresh++ })
+                            showPermissionSetup -> AppPermissionsScreen(onContinue = {
+                                permissionPrefs.edit().putBoolean("completed", true).apply()
+                                showPermissionSetup = false
+                            })
                             else -> ProfeCuadernoApp(
                                 db = db,
                                 onDataChanged = { refresh++ },
