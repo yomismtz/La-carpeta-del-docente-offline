@@ -21,7 +21,6 @@ jobs:
           from pathlib import Path
           import re
 
-          # Improve automatic activity classification around detected dates.
           p = Path('app/src/main/java/com/profecuaderno/app/util/PlanningGuideAnalyzer.kt')
           s = p.read_text()
           pattern = re.compile(r'    private fun classify\(line: String\): String \{.*?\n    \}\n\n    private fun monthNumber', re.S)
@@ -53,7 +52,6 @@ jobs:
               raise SystemExit(f'Planning classifier replacement count={n}')
           p.write_text(s)
 
-          # Guide: explain classification, sync approved dates with Android calendar, and re-arm reminders.
           p = Path('app/src/main/java/com/profecuaderno/app/ui/GuideScreen.kt')
           s = p.read_text()
           if 'import com.profecuaderno.app.notifications.ReminderScheduler' not in s:
@@ -69,14 +67,7 @@ jobs:
             }'''
           new = '''            onSave = {
                 db.saveEvent(it)
-                SystemCalendarSync.addEvent(
-                    context,
-                    it.date,
-                    it.title,
-                    period.name,
-                    eventTypeLabel(it.type),
-                    it.notes
-                )
+                SystemCalendarSync.addEvent(context, it.date, it.title, period.name, eventTypeLabel(it.type), it.notes)
                 ReminderScheduler.ensureDaily(context)
                 eventTypeToCreate = null
                 onChanged()
@@ -84,7 +75,6 @@ jobs:
           if old not in s:
               raise SystemExit('Guide manual save block not found')
           s = s.replace(old, new, 1)
-
           old = '''                        selectedSuggestions.sorted().forEach { index ->
                             val suggestion = suggestions[index]
                             db.saveEvent(CalendarEvent(0, period.id, suggestion.title, suggestion.date, "Detectado desde la guía / planeación", suggestion.type))
@@ -94,14 +84,7 @@ jobs:
                             val suggestion = suggestions[index]
                             val event = CalendarEvent(0, period.id, suggestion.title, suggestion.date, "Detectado desde la guía / planeación", suggestion.type)
                             db.saveEvent(event)
-                            SystemCalendarSync.addEvent(
-                                context,
-                                event.date,
-                                event.title,
-                                period.name,
-                                eventTypeLabel(event.type),
-                                event.notes
-                            )
+                            SystemCalendarSync.addEvent(context, event.date, event.title, period.name, eventTypeLabel(event.type), event.notes)
                         }
                         ReminderScheduler.ensureDaily(context)
                         analysisMessage = "Se agregaron ${selectedSuggestions.size} fechas al calendario y quedaron enlazadas con los recordatorios."'''
@@ -110,11 +93,14 @@ jobs:
           s = s.replace(old, new, 1)
           p.write_text(s)
 
-          # Calendar: manually-created dates get the same system calendar + notification behavior.
           p = Path('app/src/main/java/com/profecuaderno/app/ui/CalendarScreen.kt')
           s = p.read_text()
           if 'import com.profecuaderno.app.notifications.ReminderScheduler' not in s:
               s = s.replace('import com.profecuaderno.app.data.TrashStore\n', 'import com.profecuaderno.app.data.TrashStore\nimport com.profecuaderno.app.notifications.ReminderScheduler\nimport com.profecuaderno.app.util.SystemCalendarSync\n')
+          if 'import androidx.compose.ui.platform.LocalContext' not in s:
+              s = s.replace('import androidx.compose.ui.Modifier\n', 'import androidx.compose.ui.Modifier\nimport androidx.compose.ui.platform.LocalContext\n')
+          if 'val context = LocalContext.current' not in s:
+              s = s.replace('fun CalendarScreen(db: TeacherDbHelper, refresh: Int, onChanged: () -> Unit) {\n', 'fun CalendarScreen(db: TeacherDbHelper, refresh: Int, onChanged: () -> Unit) {\n    val context = LocalContext.current\n')
           old = '            onSave = { db.saveEvent(it); showNew = false; onChanged() }'
           new = '''            onSave = {
                 db.saveEvent(it)
@@ -127,10 +113,6 @@ jobs:
           if old not in s:
               raise SystemExit('Calendar save block not found')
           s = s.replace(old, new, 1)
-          # CalendarScreen needs LocalContext.
-          if 'import androidx.compose.ui.platform.LocalContext' not in s:
-              s = s.replace('import androidx.compose.ui.Modifier\n', 'import androidx.compose.ui.Modifier\nimport androidx.compose.ui.platform.LocalContext\n')
-          s = s.replace('fun CalendarScreen(db: TeacherDbHelper, refresh: Int, onChanged: () -> Unit) {\n', 'fun CalendarScreen(db: TeacherDbHelper, refresh: Int, onChanged: () -> Unit) {\n    val context = LocalContext.current\n')
           p.write_text(s)
           PY
 
@@ -138,8 +120,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/src/main/java/com/profecuaderno/app/util/PlanningGuideAnalyzer.kt \
-                  app/src/main/java/com/profecuaderno/app/ui/GuideScreen.kt \
-                  app/src/main/java/com/profecuaderno/app/ui/CalendarScreen.kt
+          git add app/src/main/java/com/profecuaderno/app/util/PlanningGuideAnalyzer.kt app/src/main/java/com/profecuaderno/app/ui/GuideScreen.kt app/src/main/java/com/profecuaderno/app/ui/CalendarScreen.kt
           git diff --cached --quiet || git commit -m "Classify planning dates and link calendar reminders"
           git push
+
+# run-final
