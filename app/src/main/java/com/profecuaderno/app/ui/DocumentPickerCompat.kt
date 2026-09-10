@@ -35,8 +35,23 @@ object DocumentPickerCompat {
         }
     }
 
-    fun canResolve(context: Context, intent: Intent): Boolean =
-        intent.resolveActivity(context.packageManager) != null
+    /**
+     * No bloqueamos el selector por resolveActivity() en Android moderno.
+     * Algunos fabricantes devuelven null para ACTION_CHOOSER aunque el selector
+     * del sistema sí exista. En esos equipos la comprobación anterior mostraba
+     * incorrectamente "Selector de archivos no disponible".
+     *
+     * El lanzamiento real se protege con runCatching desde la pantalla.
+     */
+    fun canResolve(context: Context, intent: Intent): Boolean {
+        if (intent.action == Intent.ACTION_CHOOSER ||
+            intent.action == Intent.ACTION_OPEN_DOCUMENT ||
+            intent.action == Intent.ACTION_GET_CONTENT ||
+            intent.action == Intent.ACTION_CREATE_DOCUMENT
+        ) return true
+
+        return intent.resolveActivity(context.packageManager) != null
+    }
 
     fun appSettingsIntent(context: Context): Intent = Intent(
         Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
