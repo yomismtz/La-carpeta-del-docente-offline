@@ -64,3 +64,5 @@ jobs:
           git add app/src/main/java/com/profecuaderno/app/ui/GuideScreen.kt app/src/main/java/com/profecuaderno/app/ui/StudentsScreen.kt
           git diff --cached --quiet || git commit -m "Use direct Android document picker"
           git push
+
+# trigger-2
