@@ -19,6 +19,7 @@ class MainActivity : FragmentActivity() {
         setContent {
             val context = LocalContext.current
             val prefs = remember { context.getSharedPreferences("agenda_preferences", MODE_PRIVATE) }
+            val appLanguage = remember { AppLanguagePrefs.load(context) }
             var selectedTheme by remember {
                 mutableStateOf(AgendaThemeStyle.fromKey(prefs.getString("theme_style", null)))
             }
@@ -29,53 +30,55 @@ class MainActivity : FragmentActivity() {
                 selectedTheme = style
             }
 
-            ProfeCuadernoTheme(style = activeTheme) {
-                val db = remember { TeacherDbHelper(context) }
-                LaunchedEffect(Unit) { ReminderScheduler.ensureDaily(context) }
-                var refresh by remember { mutableIntStateOf(0) }
-                val teacher = remember(refresh) { db.getTeacher() }
-                var unlocked by remember { mutableStateOf(!AppSecurityManager.isLockEnabled(context)) }
-                val lifecycleOwner = LocalLifecycleOwner.current
+            CompositionLocalProvider(LocalAppLanguage provides appLanguage) {
+                ProfeCuadernoTheme(style = activeTheme) {
+                    val db = remember { TeacherDbHelper(context) }
+                    LaunchedEffect(Unit) { ReminderScheduler.ensureDaily(context) }
+                    var refresh by remember { mutableIntStateOf(0) }
+                    val teacher = remember(refresh) { db.getTeacher() }
+                    var unlocked by remember { mutableStateOf(!AppSecurityManager.isLockEnabled(context)) }
+                    val lifecycleOwner = LocalLifecycleOwner.current
 
-                DisposableEffect(lifecycleOwner) {
-                    val observer = LifecycleEventObserver { _, event ->
-                        if (
-                            event == Lifecycle.Event.ON_STOP &&
-                            AppSecurityManager.isLockEnabled(context) &&
-                            !ExternalActivityGuard.active
-                        ) {
-                            unlocked = false
+                    DisposableEffect(lifecycleOwner) {
+                        val observer = LifecycleEventObserver { _, event ->
+                            if (
+                                event == Lifecycle.Event.ON_STOP &&
+                                AppSecurityManager.isLockEnabled(context) &&
+                                !ExternalActivityGuard.active
+                            ) {
+                                unlocked = false
+                            }
                         }
+                        lifecycleOwner.lifecycle.addObserver(observer)
+                        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
                     }
-                    lifecycleOwner.lifecycle.addObserver(observer)
-                    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-                }
 
-                NotebookBackground(style = activeTheme) {
-                    when {
-                        selectedTheme == null -> ThemeSelectionScreen(
-                            initial = AgendaThemeStyle.MINT_LAVENDER,
-                            onSelected = { saveTheme(it) }
-                        )
-                        !unlocked && AppSecurityManager.isLockEnabled(context) -> {
-                            AppLockScreen(onUnlocked = { unlocked = true })
-                        }
-                        teacher == null -> {
-                            TeacherSetupScreen(
-                                onSave = {
-                                    db.saveTeacher(it)
-                                    refresh++
-                                }
+                    NotebookBackground(style = activeTheme) {
+                        when {
+                            selectedTheme == null -> ThemeSelectionScreen(
+                                initial = AgendaThemeStyle.MINT_LAVENDER,
+                                onSelected = { saveTheme(it) }
                             )
-                        }
-                        else -> {
-                            ProfeCuadernoApp(
-                                db = db,
-                                onDataChanged = { refresh++ },
-                                globalRefresh = refresh,
-                                currentTheme = activeTheme,
-                                onThemeChanged = { saveTheme(it) }
-                            )
+                            !unlocked && AppSecurityManager.isLockEnabled(context) -> {
+                                AppLockScreen(onUnlocked = { unlocked = true })
+                            }
+                            teacher == null -> {
+                                TeacherSetupScreen(
+                                    onSave = {
+                                        db.saveTeacher(it)
+                                        refresh++
+                                    }
+                                )
+                            }
+                            else -> {
+                                ProfeCuadernoApp(
+                                    db = db,
+                                    onDataChanged = { refresh++ },
+                                    globalRefresh = refresh,
+                                    currentTheme = activeTheme,
+                                    onThemeChanged = { saveTheme(it) }
+                                )
+                            }
                         }
                     }
                 }
