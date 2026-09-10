@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.profecuaderno.app.data.AcademicPeriod
@@ -64,6 +65,7 @@ fun ProfeCuadernoApp(
     val tick = globalRefresh + localRefresh
     val teacher = remember(tick) { db.getTeacher()!! }
     val period = remember(tick) { db.getActivePeriod() }
+    val compactWidth = LocalConfiguration.current.screenWidthDp < 420
 
     val refreshAll = {
         localRefresh++
@@ -131,7 +133,7 @@ fun ProfeCuadernoApp(
                             Icon(Icons.Default.Search, contentDescription = "Búsqueda universal")
                         }
                     }
-                    if (screen == Screen.HOME || screen == Screen.PROFILE) {
+                    if (!compactWidth && (screen == Screen.HOME || screen == Screen.PROFILE)) {
                         IconButton(onClick = { screen = Screen.GRADE_HISTORY }, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) {
                             Icon(Icons.Default.History, contentDescription = "Historial de calificaciones")
                         }
@@ -145,7 +147,7 @@ fun ProfeCuadernoApp(
                         }
                     }
                     if (
-                        screen != Screen.HELP && screen != Screen.APPEARANCE && screen != Screen.TRASH &&
+                        !compactWidth && screen != Screen.HELP && screen != Screen.APPEARANCE && screen != Screen.TRASH &&
                         screen != Screen.GRADE_HISTORY && screen != Screen.SEARCH
                     ) {
                         IconButton(onClick = { screen = Screen.HELP }, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) {
