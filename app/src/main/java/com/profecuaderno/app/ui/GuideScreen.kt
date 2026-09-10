@@ -70,6 +70,10 @@ fun GuideScreen(
             return
         }
 
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
         val readable = runCatching {
             context.contentResolver.openInputStream(uri)?.use { it.read() } != null
         }.getOrDefault(false)
@@ -91,17 +95,17 @@ fun GuideScreen(
 
     fun openPicker() {
         pickerMessage = null
-        ExternalActivityGuard.active = true
-        // ACTION_GET_CONTENT funciona incluso en equipos donde ACTION_OPEN_DOCUMENT no está disponible.
-        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "*/*"
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            putExtra(Intent.EXTRA_MIME_TYPES, DocumentImportPolicy.mimeTypes)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
         }
-        runCatching { pickerLauncher.launch(Intent.createChooser(intent, "Seleccionar documento")) }
+        ExternalActivityGuard.active = true
+        runCatching { pickerLauncher.launch(intent) }
             .onFailure {
                 ExternalActivityGuard.active = false
-                pickerMessage = "Android no pudo abrir un selector de archivos. Instala o habilita una app de archivos y vuelve a intentar."
+                pickerMessage = "No se pudo abrir el selector de documentos de Android."
             }
     }
 
