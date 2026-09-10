@@ -8,3 +8,4 @@ Versión local e independiente de La Carpeta del Docente. Mantiene la misma inte
 - Calificaciones, asistencia, grupos, creación de equipos y planeación permanecen en el dispositivo.
 - Creación de equipos usando el registro real de alumnos de cada grupo, con rifa al azar o selección manual, exclusión de ausentes e historial por actividad.
 - Conserva respaldo/restauración local, PDF, CSV, temas y seguridad.
+- La planeación admite análisis de fechas desde PDF, Word, TXT e imágenes; los PDF sin texto y las imágenes usan OCR local.
