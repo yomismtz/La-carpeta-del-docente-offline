@@ -9,7 +9,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FactCheck
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Science
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,7 +28,6 @@ fun PeriodsScreen(
     val periods = remember(refresh) { TrashStore.visiblePeriods(db) }
     val active = periods.firstOrNull { it.active }
     var showNew by remember { mutableStateOf(false) }
-    var showDemoConfirm by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<AcademicPeriod?>(null) }
     var auditing by remember { mutableStateOf<AcademicPeriod?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -52,11 +50,6 @@ fun PeriodsScreen(
                             Text("Mis grupos", style = MaterialTheme.typography.titleMedium)
                             Text("Abre un grupo para trabajar.", style = MaterialTheme.typography.bodySmall)
                         }
-                        TextButton(onClick = { showDemoConfirm = true }) {
-                            Icon(Icons.Default.Science, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Demo")
-                        }
                     }
                 }
                 Spacer(Modifier.height(8.dp))
@@ -66,7 +59,7 @@ fun PeriodsScreen(
                             ElevatedCard(Modifier.fillMaxWidth()) {
                                 Column(Modifier.padding(18.dp)) {
                                     Text("Aún no tienes grupos.")
-                                    Text("Pulsa + para crear el primero o usa Demo.")
+                                    Text("Pulsa + para crear tu primer grupo.")
                                 }
                             }
                         }
@@ -121,22 +114,6 @@ fun PeriodsScreen(
         db.getActivePeriod()?.let(onOpen)
     }
 
-    if (showDemoConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDemoConfirm = false },
-            title = { Text("Crear grupo de demostración") },
-            text = { Text("Se crearán 25 estudiantes ficticios, asistencias, actividades, exámenes, calificaciones y eventos. Todo quedará marcado como DEMO y podrás enviarlo a Papelera después.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    val id = DemoDataGenerator.create(db)
-                    showDemoConfirm = false
-                    onChanged()
-                    db.getPeriods().firstOrNull { it.id == id }?.let(onOpen)
-                }) { Text("Crear DEMO") }
-            },
-            dismissButton = { TextButton(onClick = { showDemoConfirm = false }) { Text("Cancelar") } }
-        )
-    }
 
     auditing?.let { period ->
         val summary = remember(refresh, period.id) { PeriodAuditStore.summary(db, period.id) }

@@ -1,6 +1,7 @@
 package com.profecuaderno.app.ui
 
 import android.content.Intent
+import android.provider.OpenableColumns
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -58,6 +59,18 @@ fun GuideScreen(
             return
         }
 
+        val displayName = runCatching {
+            context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
+            }
+        }.getOrNull()
+        val mime = runCatching { context.contentResolver.getType(uri) }.getOrNull()
+        val supportedByMime = mime != null && DocumentImportPolicy.mimeTypes.contains(mime)
+        if (!DocumentImportPolicy.isSupported(displayName) && !supportedByMime) {
+            pickerMessage = "Formato no compatible. Elige PDF, CSV, XLS, XLSX, DOC, DOCX o TXT."
+            return
+        }
+
         val persisted = runCatching {
             context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             true
@@ -88,7 +101,9 @@ fun GuideScreen(
     fun openPicker() {
         pickerMessage = null
         ExternalActivityGuard.active = true
-        runCatching { pickerLauncher.launch(DocumentImportPolicy.mimeTypes) }
+        // Algunos selectores de fabricantes se cierran al recibir demasiados MIME types.
+        // */* mantiene el selector estable y la app valida el archivo tras elegirlo.
+        runCatching { pickerLauncher.launch(arrayOf("*/*")) }
             .onFailure {
                 ExternalActivityGuard.active = false
                 pickerMessage = "No pude abrir el selector de documentos de Android. Revisa que la app Archivos/Files del sistema esté habilitada."

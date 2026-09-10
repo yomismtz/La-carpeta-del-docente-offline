@@ -18,21 +18,14 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val context = LocalContext.current
-            val prefs = remember { context.getSharedPreferences("agenda_preferences", MODE_PRIVATE) }
             val appLanguage = remember { AppLanguagePrefs.load(context) }
-            var selectedTheme by remember { mutableStateOf(AgendaThemeStyle.fromKey(prefs.getString("theme_style", null))) }
-            val activeTheme = selectedTheme ?: AgendaThemeStyle.MINT_LAVENDER
-            val darkMode = prefs.getBoolean("ui_dark", false)
-            val fontScale = prefs.getFloat("font_scale", 1f)
-            val fontStyle = AppFontStyle.fromKey(prefs.getString("font_style", null))
-
-            fun saveTheme(style: AgendaThemeStyle) {
-                prefs.edit().putString("theme_style", style.key).apply()
-                selectedTheme = style
-            }
+            var selectedTheme by remember { mutableStateOf(AgendaThemeStyle.MINT_LAVENDER) }
+            var darkMode by remember { mutableStateOf(false) }
+            var fontScale by remember { mutableFloatStateOf(1f) }
+            var fontStyle by remember { mutableStateOf(AppFontStyle.SANS) }
 
             CompositionLocalProvider(LocalAppLanguage provides appLanguage) {
-                ProfeCuadernoTheme(style = activeTheme, darkMode = darkMode, fontScale = fontScale, fontStyle = fontStyle) {
+                ProfeCuadernoTheme(style = selectedTheme, darkMode = darkMode, fontScale = fontScale, fontStyle = fontStyle) {
                     val db = remember { TeacherDbHelper(context) }
                     LaunchedEffect(Unit) { ReminderScheduler.ensureDaily(context) }
                     var refresh by remember { mutableIntStateOf(0) }
@@ -48,12 +41,25 @@ class MainActivity : FragmentActivity() {
                         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
                     }
 
-                    NotebookBackground(style = activeTheme) {
+                    NotebookBackground(style = selectedTheme) {
                         when {
-                            selectedTheme == null -> ThemeSelectionScreen(initial = AgendaThemeStyle.MINT_LAVENDER, onSelected = { saveTheme(it) })
                             !unlocked && AppSecurityManager.isLockEnabled(context) -> AppLockScreen(onUnlocked = { unlocked = true })
                             teacher == null -> TeacherSetupScreen(onSave = { db.saveTeacher(it); refresh++ })
-                            else -> ProfeCuadernoApp(db = db, onDataChanged = { refresh++ }, globalRefresh = refresh, currentTheme = activeTheme, onThemeChanged = { saveTheme(it) })
+                            else -> ProfeCuadernoApp(
+                                db = db,
+                                onDataChanged = { refresh++ },
+                                globalRefresh = refresh,
+                                currentTheme = selectedTheme,
+                                currentDarkMode = darkMode,
+                                currentFontScale = fontScale,
+                                currentFontStyle = fontStyle,
+                                onAppearanceChanged = { style, dark, scale, font ->
+                                    selectedTheme = style
+                                    darkMode = dark
+                                    fontScale = scale
+                                    fontStyle = font
+                                }
+                            )
                         }
                     }
                 }

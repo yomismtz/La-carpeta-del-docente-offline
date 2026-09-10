@@ -54,7 +54,10 @@ fun ProfeCuadernoApp(
     onDataChanged: () -> Unit,
     globalRefresh: Int,
     currentTheme: AgendaThemeStyle,
-    onThemeChanged: (AgendaThemeStyle) -> Unit
+    currentDarkMode: Boolean,
+    currentFontScale: Float,
+    currentFontStyle: AppFontStyle,
+    onAppearanceChanged: (AgendaThemeStyle, Boolean, Float, AppFontStyle) -> Unit
 ) {
     remember(db) {
         TrashStore.ensure(db)
@@ -68,7 +71,6 @@ fun ProfeCuadernoApp(
     val tick = globalRefresh + localRefresh
     val teacher = remember(tick) { db.getTeacher()!! }
     val period = remember(tick) { db.getActivePeriod() }
-    val compactWidth = LocalConfiguration.current.screenWidthDp < 420
 
     val refreshAll = {
         localRefresh++
@@ -133,38 +135,14 @@ fun ProfeCuadernoApp(
                             Icon(Icons.Default.TableChart, contentDescription = "Captura rápida de calificaciones")
                         }
                     }
-                    if (screen != Screen.SEARCH) {
-                        IconButton(onClick = { screen = Screen.SEARCH }, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) {
-                            Icon(Icons.Default.Search, contentDescription = "Búsqueda universal")
-                        }
-                    }
-                    if (!compactWidth && (screen == Screen.HOME || screen == Screen.PROFILE)) {
-                        IconButton(onClick = { screen = Screen.GRADE_HISTORY }, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) {
-                            Icon(Icons.Default.History, contentDescription = "Historial de calificaciones")
-                        }
-                        IconButton(onClick = { screen = Screen.TRASH }, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) {
-                            Icon(Icons.Default.FolderDelete, contentDescription = "Carpeta Papelera")
-                        }
-                    }
                     if (screen == Screen.PROFILE) {
                         IconButton(onClick = { screen = Screen.APPEARANCE }, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) {
-                            Icon(Icons.Default.Palette, contentDescription = "Cambiar apariencia")
+                            Icon(Icons.Default.Palette, contentDescription = "Personalización")
                         }
                     }
-                    if (
-                        !compactWidth && screen != Screen.HELP && screen != Screen.APPEARANCE && screen != Screen.TRASH &&
-                        screen != Screen.GRADE_HISTORY && screen != Screen.SEARCH
-                    ) {
+                    if (screen != Screen.HELP) {
                         IconButton(onClick = { screen = Screen.HELP }, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) {
                             Icon(Icons.Default.HelpOutline, contentDescription = "Ayuda")
-                        }
-                    }
-                    if (
-                        screen != Screen.PROFILE && screen != Screen.APPEARANCE && screen != Screen.TRASH &&
-                        screen != Screen.GRADE_HISTORY && screen != Screen.SEARCH
-                    ) {
-                        IconButton(onClick = { screen = Screen.PROFILE }, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) {
-                            Icon(Icons.Default.Person, contentDescription = "Perfil docente")
                         }
                     }
                 },
@@ -231,8 +209,11 @@ fun ProfeCuadernoApp(
                 )
                 Screen.APPEARANCE -> ThemeSelectionScreen(
                     initial = currentTheme,
-                    onSelected = {
-                        onThemeChanged(it)
+                    initialDarkMode = currentDarkMode,
+                    initialFontScale = currentFontScale,
+                    initialFontStyle = currentFontStyle,
+                    onSelected = { style, dark, scale, font ->
+                        onAppearanceChanged(style, dark, scale, font)
                         screen = Screen.PROFILE
                     },
                     onCancel = { screen = Screen.PROFILE }

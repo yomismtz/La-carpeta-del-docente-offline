@@ -1,6 +1,5 @@
 package com.profecuaderno.app.ui
 
-import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -21,13 +20,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun ThemeSelectionScreen(initial: AgendaThemeStyle = AgendaThemeStyle.MINT_LAVENDER, onSelected: (AgendaThemeStyle) -> Unit, onCancel: (() -> Unit)? = null) {
+fun ThemeSelectionScreen(
+    initial: AgendaThemeStyle = AgendaThemeStyle.MINT_LAVENDER,
+    initialDarkMode: Boolean = false,
+    initialFontScale: Float = 1f,
+    initialFontStyle: AppFontStyle = AppFontStyle.SANS,
+    onSelected: (AgendaThemeStyle, Boolean, Float, AppFontStyle) -> Unit,
+    onCancel: (() -> Unit)? = null
+) {
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("agenda_preferences", 0) }
     var selected by remember(initial) { mutableStateOf(initial) }
-    var darkMode by remember { mutableStateOf(prefs.getBoolean("ui_dark", false)) }
-    var fontScale by remember { mutableFloatStateOf(prefs.getFloat("font_scale", 1f)) }
-    var fontStyle by remember { mutableStateOf(AppFontStyle.fromKey(prefs.getString("font_style", null))) }
+    var darkMode by remember(initialDarkMode) { mutableStateOf(initialDarkMode) }
+    var fontScale by remember(initialFontScale) { mutableFloatStateOf(initialFontScale) }
+    var fontStyle by remember(initialFontStyle) { mutableStateOf(initialFontStyle) }
     val language = LocalAppLanguage.current
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -38,7 +43,7 @@ fun ThemeSelectionScreen(initial: AgendaThemeStyle = AgendaThemeStyle.MINT_LAVEN
 
         ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Language,null); Spacer(Modifier.width(8.dp)); Text("Idioma / Language", style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold) }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(8.dp)) { AppLanguage.entries.forEach { item -> FilterChip(selected=language==item,onClick={ if(language!=item){AppLanguagePrefs.save(context,item);(context as? Activity)?.recreate()} },label={Text(item.label)},modifier=Modifier.weight(1f)) } }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(8.dp)) { AppLanguage.entries.forEach { item -> FilterChip(selected=language==item,onClick={ if(language!=item){AppLanguagePrefs.save(context,item)} },label={Text(item.label)},modifier=Modifier.weight(1f)) } }
         } }
 
         ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement=Arrangement.spacedBy(10.dp)) {
@@ -54,7 +59,7 @@ fun ThemeSelectionScreen(initial: AgendaThemeStyle = AgendaThemeStyle.MINT_LAVEN
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) {
             if(onCancel!=null) OutlinedButton(onClick=onCancel,modifier=Modifier.weight(1f).height(54.dp)){Text(language.text("Cancelar","Cancel"))}
-            Button(onClick={ prefs.edit().putBoolean("ui_dark",darkMode).putFloat("font_scale",fontScale).putString("font_style",fontStyle.key).apply(); onSelected(selected); (context as? Activity)?.recreate() },modifier=Modifier.weight(1f).height(54.dp)){Text(language.text("Aplicar","Apply"),fontWeight=FontWeight.SemiBold)}
+            Button(onClick={ onSelected(selected, darkMode, fontScale, fontStyle) },modifier=Modifier.weight(1f).height(54.dp)){Text(language.text("Aplicar","Apply"),fontWeight=FontWeight.SemiBold)}
         }
         Spacer(Modifier.height(24.dp))
     }
