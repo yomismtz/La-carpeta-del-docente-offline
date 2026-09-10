@@ -2,6 +2,8 @@ package com.profecuaderno.app.ui
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -27,25 +29,53 @@ fun GroupFilesScreen(period: AcademicPeriod) {
     val key = "documents_${period.id}"
     var documents by remember { mutableStateOf(prefs.getStringSet(key, emptySet()).orEmpty().toList()) }
     var message by remember { mutableStateOf<String?>(null) }
+    var showLocalBrowser by remember { mutableStateOf(false) }
 
     fun save(values: List<String>) {
         documents = values.distinct()
         prefs.edit().putStringSet(key, documents.toSet()).apply()
     }
 
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+    fun importDocument(uri: Uri?) {
         if (uri == null) {
             message = "No se seleccionó ningún archivo."
+            return
+        }
+        val readable = runCatching {
+            context.contentResolver.openInputStream(uri)?.use { it.read() } != null
+        }.getOrDefault(false)
+        if (!readable) {
+            message = "No se pudo leer el archivo seleccionado."
+            return
+        }
+        val localUri = LocalImportStore.copyIntoApp(context, uri, "group_${period.id}", "documento")
+        if (localUri != null) {
+            save(documents + localUri.toString())
+            message = "Documento agregado y guardado dentro de la app."
         } else {
-            runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-            val readable = runCatching { context.contentResolver.openInputStream(uri)?.use { it.read() } != null }.getOrDefault(false)
-            if (readable) {
-                save(documents + uri.toString())
-                message = "Documento agregado al grupo."
-            } else {
-                message = "No se pudo leer el archivo seleccionado."
+            message = "No se pudo guardar una copia local del documento."
+        }
+    }
+
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
         }
+        importDocument(uri)
+    }
+
+    if (showLocalBrowser) {
+        LocalFileBrowserDialog(
+            title = "Agregar documento al grupo",
+            allowedExtensions = setOf("pdf", "csv", "xls", "xlsx", "doc", "docx", "txt"),
+            onDismiss = { showLocalBrowser = false },
+            onFileSelected = { uri ->
+                showLocalBrowser = false
+                importDocument(uri)
+            }
+        )
     }
 
     LazyColumn(
@@ -58,7 +88,20 @@ fun GroupFilesScreen(period: AcademicPeriod) {
             Text("Guarda planeaciones, listas, rúbricas, exámenes y material de apoyo asociado a ${period.name}. Todo permanece en este dispositivo.")
         }
         item {
-            Button(onClick = { picker.launch(DocumentImportPolicy.mimeTypes) }, modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = {
+                    message = null
+                    if (Build.VERSION.SDK_INT >= 30 && Environment.isExternalStorageManager()) {
+                        showLocalBrowser = true
+                    } else {
+                        runCatching { picker.launch(DocumentImportPolicy.mimeTypes) }
+                            .onFailure {
+                                message = "No se pudo abrir el selector. Concede acceso a archivos para usar el explorador interno."
+                            }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Icon(Icons.Default.UploadFile, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text("Agregar documento")
@@ -82,9 +125,12 @@ fun GroupFilesScreen(period: AcademicPeriod) {
                                 setDataAndType(uri, context.contentResolver.getType(uri) ?: "*/*")
                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             }
-                            runCatching { context.startActivity(intent) }.onFailure { message = "No hay una aplicación compatible para abrir este documento." }
+                            runCatching { context.startActivity(intent) }
+                                .onFailure { message = "No hay una aplicación compatible para abrir este documento." }
                         }) { Icon(Icons.Default.FolderOpen, contentDescription = "Abrir") }
-                        IconButton(onClick = { save(documents - raw) }) { Icon(Icons.Default.Delete, contentDescription = "Eliminar") }
+                        IconButton(onClick = { save(documents - raw) }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Eliminar")
+                        }
                     }
                 }
             }
