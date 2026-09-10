@@ -10,11 +10,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.profecuaderno.app.data.AcademicPeriod
 import com.profecuaderno.app.data.CalendarEvent
 import com.profecuaderno.app.data.TeacherDbHelper
 import com.profecuaderno.app.data.TrashStore
+import com.profecuaderno.app.notifications.ReminderScheduler
+import com.profecuaderno.app.util.SystemCalendarSync
 import java.time.LocalDate
 import kotlinx.coroutines.launch
 
@@ -22,6 +25,7 @@ private data class CalendarEntry(val group: AcademicPeriod, val event: CalendarE
 
 @Composable
 fun CalendarScreen(db: TeacherDbHelper, refresh: Int, onChanged: () -> Unit) {
+    val context = LocalContext.current
     val groups = remember(refresh) { db.getOpenGroups().filter { !TrashStore.isTrashed(db, TrashStore.TYPE_GROUP, it.id) } }
     val entries = remember(refresh, groups.map { it.id }) {
         groups.flatMap { group ->
@@ -45,7 +49,7 @@ fun CalendarScreen(db: TeacherDbHelper, refresh: Int, onChanged: () -> Unit) {
                 ElevatedCard(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(14.dp)) {
                         Text("Calendario docente", style = MaterialTheme.typography.titleMedium)
-                        Text("Reúne fechas de todos tus grupos. Los cumpleaños se agregan automáticamente desde la fecha de nacimiento de cada alumno.")
+                        Text("Reúne fechas de todos tus grupos. Los cumpleaños se agregan automáticamente desde la fecha de nacimiento de cada alumno y se incluyen en los avisos diarios.")
                     }
                 }
                 if (groups.isEmpty()) {
@@ -82,7 +86,14 @@ fun CalendarScreen(db: TeacherDbHelper, refresh: Int, onChanged: () -> Unit) {
             groups = groups,
             initialGroupId = db.getActivePeriod()?.id ?: groups.first().id,
             onDismiss = { showNew = false },
-            onSave = { db.saveEvent(it); showNew = false; onChanged() }
+            onSave = {
+                db.saveEvent(it)
+                val groupName = groups.firstOrNull { group -> group.id == it.periodId }?.name ?: "Grupo"
+                SystemCalendarSync.addEvent(context, it.date, it.title, groupName, eventTypeLabel(it.type), it.notes)
+                ReminderScheduler.ensureDaily(context)
+                showNew = false
+                onChanged()
+            }
         )
     }
 
