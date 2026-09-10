@@ -10,7 +10,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Contacts
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
@@ -33,7 +33,7 @@ fun AppPermissionsScreen(onContinue: () -> Unit) {
     val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         refresh++
     }
-    val contactsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+    val calendarLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         refresh++
     }
     val legacyFilesLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -70,7 +70,9 @@ fun AppPermissionsScreen(onContinue: () -> Unit) {
     val notificationsGranted = remember(refreshKey) {
         Build.VERSION.SDK_INT < 33 || has(Manifest.permission.POST_NOTIFICATIONS)
     }
-    val contactsGranted = remember(refreshKey) { has(Manifest.permission.READ_CONTACTS) }
+    val calendarGranted = remember(refreshKey) {
+        has(Manifest.permission.READ_CALENDAR) && has(Manifest.permission.WRITE_CALENDAR)
+    }
     val filesGranted = remember(refreshKey) {
         when {
             Build.VERSION.SDK_INT >= 30 -> Environment.isExternalStorageManager()
@@ -86,10 +88,11 @@ fun AppPermissionsScreen(onContinue: () -> Unit) {
         }
     }
 
-    fun requestContacts() {
-        if (!contactsGranted) {
-            runCatching { contactsLauncher.launch(Manifest.permission.READ_CONTACTS) }
-                .onFailure { infoMessage = "No se pudo abrir el permiso de contactos." }
+    fun requestCalendar() {
+        if (!calendarGranted) {
+            runCatching {
+                calendarLauncher.launch(arrayOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR))
+            }.onFailure { infoMessage = "No se pudo abrir el permiso de calendario." }
         }
     }
 
@@ -120,10 +123,10 @@ fun AppPermissionsScreen(onContinue: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text("Permisos de la aplicación", style = MaterialTheme.typography.headlineSmall)
-        Text("Puedes concederlos uno por uno. La app no debe cerrarse al autorizar notificaciones o contactos. Para archivos, Android abre una pantalla de Ajustes y después debes regresar con Atrás.")
+        Text("La app solo solicita notificaciones, calendario y archivos. No solicita acceso a tus contactos.")
 
         PermissionCard("Notificaciones", notificationsGranted, Icons.Default.Notifications) { requestNotification() }
-        PermissionCard("Contactos", contactsGranted, Icons.Default.Contacts) { requestContacts() }
+        PermissionCard("Calendario", calendarGranted, Icons.Default.CalendarMonth) { requestCalendar() }
         PermissionCard("Archivos del teléfono", filesGranted, Icons.Default.Folder) { requestFiles() }
 
         Text(
