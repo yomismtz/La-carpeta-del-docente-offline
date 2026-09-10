@@ -26,8 +26,10 @@ import androidx.compose.ui.unit.dp
 import com.profecuaderno.app.data.AcademicPeriod
 import com.profecuaderno.app.data.CalendarEvent
 import com.profecuaderno.app.data.TeacherDbHelper
+import com.profecuaderno.app.notifications.ReminderScheduler
 import com.profecuaderno.app.util.PlanningGuideAnalyzer
 import com.profecuaderno.app.util.PlanningSuggestion
+import com.profecuaderno.app.util.SystemCalendarSync
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -131,7 +133,7 @@ fun GuideScreen(
                         Text("Guía / planeación", style = MaterialTheme.typography.titleLarge)
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text("Puedes importar una planeación en PDF, Word, TXT o imagen. La app buscará fechas en el texto y usará reconocimiento OCR cuando el PDF o la imagen no tengan texto extraíble.")
+                    Text("Puedes importar una planeación en PDF, Word, TXT o imagen. La app detectará fechas, usará OCR cuando haga falta y clasificará automáticamente exámenes, laboratorios, prácticas, evaluaciones, exposiciones, entregas, proyectos, visitas y otras actividades.")
                 }
             }
         }
@@ -182,7 +184,7 @@ fun GuideScreen(
                                     analyzing = false
                                     analysisMessage = if (found.isEmpty()) {
                                         "No encontré fechas reconocibles. La app revisó el texto disponible y, para PDF o imágenes, también intentó reconocimiento OCR. Revisa que las fechas sean visibles y tengan un formato como 10/09/2026, 10 de septiembre de 2026 o 10 sep."
-                                    } else "Encontré ${found.size} posibles fechas. Revisa cuáles quieres agregar."
+                                    } else "Encontré ${found.size} posibles fechas y las clasifiqué por tipo. Revisa cuáles quieres agregar."
                                 }
                             }
                         ) {
@@ -204,7 +206,7 @@ fun GuideScreen(
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Fechas de la planeación", style = MaterialTheme.typography.titleMedium)
-                    Text("Selecciona el tipo de actividad y agrega su fecha. Al guardarla aparecerá automáticamente en el calendario principal.")
+                    Text("Selecciona el tipo de actividad y agrega su fecha. Al guardarla aparecerá en el calendario de la app y, si autorizaste Calendario, también se añadirá al calendario de Android.")
                     teacherEventTypes.chunked(2).forEach { row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                             row.forEach { option ->
@@ -258,6 +260,8 @@ fun GuideScreen(
             onDismiss = { eventTypeToCreate = null },
             onSave = {
                 db.saveEvent(it)
+                SystemCalendarSync.addEvent(context, it.date, it.title, period.name, eventTypeLabel(it.type), it.notes)
+                ReminderScheduler.ensureDaily(context)
                 eventTypeToCreate = null
                 onChanged()
             }
@@ -267,7 +271,7 @@ fun GuideScreen(
     if (suggestions.isNotEmpty()) {
         AlertDialog(
             onDismissRequest = { suggestions = emptyList(); selectedSuggestions = emptySet() },
-            title = { Text("Fechas detectadas") },
+            title = { Text("Fechas detectadas y clasificadas") },
             text = {
                 Column(Modifier.fillMaxWidth().heightIn(max = 600.dp)) {
                     Text("Confirma antes de agregar. La app no guarda ninguna fecha automáticamente.")
@@ -297,9 +301,12 @@ fun GuideScreen(
                     onClick = {
                         selectedSuggestions.sorted().forEach { index ->
                             val suggestion = suggestions[index]
-                            db.saveEvent(CalendarEvent(0, period.id, suggestion.title, suggestion.date, "Detectado desde la guía / planeación", suggestion.type))
+                            val event = CalendarEvent(0, period.id, suggestion.title, suggestion.date, "Detectado desde la guía / planeación", suggestion.type)
+                            db.saveEvent(event)
+                            SystemCalendarSync.addEvent(context, event.date, event.title, period.name, eventTypeLabel(event.type), event.notes)
                         }
-                        analysisMessage = "Se agregaron ${selectedSuggestions.size} fechas al calendario."
+                        ReminderScheduler.ensureDaily(context)
+                        analysisMessage = "Se agregaron ${selectedSuggestions.size} fechas al calendario y quedaron enlazadas con los recordatorios."
                         suggestions = emptyList()
                         selectedSuggestions = emptySet()
                         onChanged()
