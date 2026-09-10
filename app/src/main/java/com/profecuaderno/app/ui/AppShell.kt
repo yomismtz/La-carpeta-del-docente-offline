@@ -33,6 +33,7 @@ private enum class Screen(val title: String) {
     QUICK_GRADE("Captura rápida"),
     RUBRICS("Rubros y rúbricas"),
     GUIDE("Guía / planeación"),
+    GROUP_FILES("Archivos del grupo"),
     CALENDAR("Calendario"),
     REPORTS("Reportes"),
     PROFILE("Mi perfil docente"),
@@ -76,7 +77,7 @@ fun ProfeCuadernoApp(
         screen = when (screen) {
             Screen.PROGRAM_HOME -> Screen.PROGRAMS
             Screen.STUDENTS, Screen.TEAMS, Screen.ATTENDANCE, Screen.EVALUATION,
-            Screen.RUBRICS, Screen.GUIDE, Screen.REPORTS -> Screen.PROGRAM_HOME
+            Screen.RUBRICS, Screen.GUIDE, Screen.GROUP_FILES, Screen.REPORTS -> Screen.PROGRAM_HOME
             Screen.QUICK_GRADE -> Screen.EVALUATION
             Screen.PROGRAMS, Screen.CALENDAR, Screen.PROFILE, Screen.HELP,
             Screen.TRASH, Screen.GRADE_HISTORY, Screen.SEARCH -> Screen.HOME
@@ -199,6 +200,7 @@ fun ProfeCuadernoApp(
                         onEvaluation = { screen = Screen.EVALUATION },
                         onRubrics = { screen = Screen.RUBRICS },
                         onGuide = { screen = Screen.GUIDE },
+                        onFiles = { screen = Screen.GROUP_FILES },
                         onReports = { screen = Screen.REPORTS }
                     )
                 }
@@ -209,6 +211,7 @@ fun ProfeCuadernoApp(
                 Screen.QUICK_GRADE -> RequirePeriod(period) { QuickGradeScreen(db, period!!, tick, refreshAll) }
                 Screen.RUBRICS -> RequirePeriod(period) { RubricsScreen(db, period!!, tick, refreshAll) }
                 Screen.GUIDE -> RequirePeriod(period) { GuideScreen(db, period!!, tick, refreshAll) }
+                Screen.GROUP_FILES -> RequirePeriod(period) { GroupFilesScreen(period!!) }
                 Screen.CALENDAR -> CalendarScreen(db, tick, refreshAll)
                 Screen.REPORTS -> RequirePeriod(period) { ReportsScreen(db, period!!, tick) }
                 Screen.PROFILE -> ProfileScreen(
