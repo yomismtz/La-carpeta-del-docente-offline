@@ -14,6 +14,7 @@ import com.profecuaderno.app.notifications.ReminderScheduler
 import com.profecuaderno.app.ui.*
 
 class MainActivity : FragmentActivity() {
+    // La apariencia vuelve a la predeterminada en cada arranque en frío.
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
