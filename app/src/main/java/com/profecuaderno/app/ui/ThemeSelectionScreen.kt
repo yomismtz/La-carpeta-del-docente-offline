@@ -1,17 +1,20 @@
 package com.profecuaderno.app.ui
 
+import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -21,7 +24,9 @@ fun ThemeSelectionScreen(
     onSelected: (AgendaThemeStyle) -> Unit,
     onCancel: (() -> Unit)? = null
 ) {
+    val context = LocalContext.current
     var selected by remember(initial) { mutableStateOf(initial) }
+    val language = LocalAppLanguage.current
 
     Column(
         modifier = Modifier.fillMaxSize().padding(20.dp),
@@ -31,8 +36,33 @@ fun ThemeSelectionScreen(
             Icon(Icons.Default.Palette, null, modifier = Modifier.size(34.dp))
             Spacer(Modifier.width(10.dp))
             Column {
-                Text("Hazla tuya", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text("Elige cómo quieres ver tu agenda. Podrás cambiarlo cuando quieras.")
+                Text(language.text("Hazla tuya", "Make it yours"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text(language.text("Elige cómo quieres ver tu agenda. Podrás cambiarlo cuando quieras.", "Choose how you want your planner to look. You can change it anytime."))
+            }
+        }
+
+        ElevatedCard(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Language, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(language.text("Idioma / Language", "Language / Idioma"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AppLanguage.entries.forEach { item ->
+                        FilterChip(
+                            selected = language == item,
+                            onClick = {
+                                if (language != item) {
+                                    AppLanguagePrefs.save(context, item)
+                                    (context as? Activity)?.recreate()
+                                }
+                            },
+                            label = { Text(item.label) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
             }
         }
 
@@ -47,19 +77,20 @@ fun ThemeSelectionScreen(
                     onClick = onCancel,
                     modifier = Modifier.weight(1f).height(54.dp),
                     shape = RoundedCornerShape(18.dp)
-                ) { Text("Cancelar") }
+                ) { Text(language.text("Cancelar", "Cancel")) }
             }
             Button(
                 onClick = { onSelected(selected) },
                 modifier = Modifier.weight(1f).height(54.dp),
                 shape = RoundedCornerShape(18.dp)
-            ) { Text("Usar este estilo", fontWeight = FontWeight.SemiBold) }
+            ) { Text(language.text("Usar este estilo", "Use this style"), fontWeight = FontWeight.SemiBold) }
         }
     }
 }
 
 @Composable
 private fun ThemePreviewCard(style: AgendaThemeStyle, selected: Boolean, onClick: () -> Unit) {
+    val language = LocalAppLanguage.current
     val colors = when (style) {
         AgendaThemeStyle.GRAPHITE_BLUE -> listOf(Color(0xFF1D2733), Color(0xFF234A73), Color(0xFF9CA7B2))
         AgendaThemeStyle.SUNSET_GARDEN -> listOf(Color(0xFFD39A16), Color(0xFFB93A32), Color(0xFF3F7B4E))
@@ -87,7 +118,7 @@ private fun ThemePreviewCard(style: AgendaThemeStyle, selected: Boolean, onClick
                 Text(style.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(style.subtitle, style = MaterialTheme.typography.bodySmall)
             }
-            if (selected) Icon(Icons.Default.CheckCircle, contentDescription = "Seleccionado", tint = colors[1])
+            if (selected) Icon(Icons.Default.CheckCircle, contentDescription = language.text("Seleccionado", "Selected"), tint = colors[1])
         }
     }
 }
