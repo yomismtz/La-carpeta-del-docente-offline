@@ -3,6 +3,7 @@ package com.profecuaderno.app.ui
 import android.content.Intent
 import android.provider.OpenableColumns
 import android.net.Uri
+import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -13,7 +14,6 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -49,7 +49,6 @@ fun GuideScreen(
     var selectedSuggestions by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var analysisMessage by remember { mutableStateOf<String?>(null) }
     var pickerMessage by remember { mutableStateOf<String?>(null) }
-    var showFileHelp by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     fun handleDocument(uri: Uri?) {
@@ -71,11 +70,6 @@ fun GuideScreen(
             return
         }
 
-        val persisted = runCatching {
-            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            true
-        }.getOrDefault(false)
-
         val readable = runCatching {
             context.contentResolver.openInputStream(uri)?.use { it.read() } != null
         }.getOrDefault(false)
@@ -83,31 +77,31 @@ fun GuideScreen(
         if (readable) {
             prefs.edit().putString(key, uri.toString()).apply()
             uriString = uri.toString()
-            pickerMessage = if (persisted) {
-                "Documento seleccionado correctamente."
-            } else {
-                "Documento seleccionado. Si Android revoca el acceso más adelante, solo tendrás que seleccionarlo de nuevo."
-            }
+            pickerMessage = "Documento seleccionado correctamente."
         } else {
             pickerMessage = "No pude leer ese archivo. Elige un PDF, CSV, Excel, Word o TXT almacenado en el dispositivo o en un proveedor compatible."
         }
     }
 
-    val pickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+    val pickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         ExternalActivityGuard.active = false
-        handleDocument(uri)
+        if (result.resultCode == Activity.RESULT_OK) handleDocument(result.data?.data)
+        else if (result.resultCode != Activity.RESULT_CANCELED) pickerMessage = "No se pudo recibir el archivo seleccionado."
     }
 
     fun openPicker() {
         pickerMessage = null
         ExternalActivityGuard.active = true
-        // Algunos selectores de fabricantes se cierran al recibir demasiados MIME types.
-        // */* mantiene el selector estable y la app valida el archivo tras elegirlo.
-        runCatching { pickerLauncher.launch(arrayOf("*/*")) }
+        // ACTION_GET_CONTENT funciona incluso en equipos donde ACTION_OPEN_DOCUMENT no está disponible.
+        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        runCatching { pickerLauncher.launch(Intent.createChooser(intent, "Seleccionar documento")) }
             .onFailure {
                 ExternalActivityGuard.active = false
-                pickerMessage = "No pude abrir el selector de documentos de Android. Revisa que la app Archivos/Files del sistema esté habilitada."
-                showFileHelp = true
+                pickerMessage = "Android no pudo abrir un selector de archivos. Instala o habilita una app de archivos y vuelve a intentar."
             }
     }
 
@@ -231,27 +225,6 @@ fun GuideScreen(
         }
 
         item { Spacer(Modifier.height(30.dp)) }
-    }
-
-    if (showFileHelp) {
-        AlertDialog(
-            onDismissRequest = { showFileHelp = false },
-            title = { Text("Selector de archivos no disponible") },
-            text = { Text("Android no pudo abrir su selector de documentos. Verifica que la aplicación del sistema Archivos/Files esté habilitada. No necesitas conceder acceso general a todo el almacenamiento para seleccionar un documento.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showFileHelp = false
-                    ExternalActivityGuard.active = true
-                    runCatching { context.startActivity(DocumentPickerCompat.appSettingsIntent(context)) }
-                        .onFailure { ExternalActivityGuard.active = false }
-                }) {
-                    Icon(Icons.Default.Settings, contentDescription = null)
-                    Spacer(Modifier.width(6.dp))
-                    Text("Abrir configuración")
-                }
-            },
-            dismissButton = { TextButton(onClick = { showFileHelp = false }) { Text("Cerrar") } }
-        )
     }
 
     eventTypeToCreate?.let { selectedType ->

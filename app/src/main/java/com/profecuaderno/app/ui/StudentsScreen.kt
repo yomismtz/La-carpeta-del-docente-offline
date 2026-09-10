@@ -1,5 +1,7 @@
 package com.profecuaderno.app.ui
 
+import android.app.Activity
+import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -9,7 +11,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -34,7 +35,6 @@ fun StudentsScreen(db: TeacherDbHelper, period: AcademicPeriod, refresh: Int, on
     var deleting by remember { mutableStateOf<Student?>(null) }
     var importMessage by remember { mutableStateOf<String?>(null) }
     var importing by remember { mutableStateOf(false) }
-    var showFileHelp by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -77,20 +77,24 @@ fun StudentsScreen(db: TeacherDbHelper, period: AcademicPeriod, refresh: Int, on
         }
     }
 
-    val pickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+    val pickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         ExternalActivityGuard.active = false
-        importUri(uri)
+        if (result.resultCode == Activity.RESULT_OK) importUri(result.data?.data)
+        else if (result.resultCode != Activity.RESULT_CANCELED) importMessage = "No se pudo recibir el CSV seleccionado."
     }
 
     fun openCsvPicker() {
         importMessage = null
-        val mimeTypes = arrayOf("text/csv", "text/plain", "application/vnd.ms-excel", "application/csv", "text/comma-separated-values", "application/octet-stream")
         ExternalActivityGuard.active = true
-        runCatching { pickerLauncher.launch(mimeTypes) }
+        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        runCatching { pickerLauncher.launch(Intent.createChooser(intent, "Seleccionar archivo CSV")) }
             .onFailure {
                 ExternalActivityGuard.active = false
-                importMessage = "No pude abrir el selector de CSV. Revisa que Archivos/Files esté habilitado."
-                showFileHelp = true
+                importMessage = "Android no pudo abrir un selector de archivos. Instala o habilita una app de archivos y vuelve a intentar."
             }
     }
 
@@ -141,27 +145,6 @@ fun StudentsScreen(db: TeacherDbHelper, period: AcademicPeriod, refresh: Int, on
                 }
             }
         }
-    }
-
-    if (showFileHelp) {
-        AlertDialog(
-            onDismissRequest = { showFileHelp = false },
-            title = { Text("Selector de archivos no disponible") },
-            text = { Text("Android no encontró una aplicación capaz de seleccionar documentos. Habilita o instala un administrador de archivos y vuelve a intentar. También puedes abrir la configuración de esta app desde aquí.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showFileHelp = false
-                    ExternalActivityGuard.active = true
-                    runCatching { context.startActivity(DocumentPickerCompat.appSettingsIntent(context)) }
-                        .onFailure { ExternalActivityGuard.active = false }
-                }) {
-                    Icon(Icons.Default.Settings, contentDescription = null)
-                    Spacer(Modifier.width(6.dp))
-                    Text("Abrir configuración")
-                }
-            },
-            dismissButton = { TextButton(onClick = { showFileHelp = false }) { Text("Cerrar") } }
-        )
     }
 
     if (showNew) StudentDialog(
