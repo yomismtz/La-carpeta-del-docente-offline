@@ -27,6 +27,7 @@ import com.profecuaderno.app.data.AcademicPeriod
 import com.profecuaderno.app.data.CalendarEvent
 import com.profecuaderno.app.data.TeacherDbHelper
 import com.profecuaderno.app.notifications.ReminderScheduler
+import com.profecuaderno.app.util.PlanningActivityClassifier
 import com.profecuaderno.app.util.PlanningGuideAnalyzer
 import com.profecuaderno.app.util.PlanningSuggestion
 import com.profecuaderno.app.util.SystemCalendarSync
@@ -177,7 +178,11 @@ fun GuideScreen(
                                 analysisMessage = null
                                 scope.launch {
                                     val found = withContext(Dispatchers.IO) {
-                                        runCatching { PlanningGuideAnalyzer.analyze(context, Uri.parse(currentUri), period) }.getOrElse { emptyList() }
+                                        runCatching { PlanningGuideAnalyzer.analyze(context, Uri.parse(currentUri), period) }
+                                            .getOrElse { emptyList() }
+                                            .map { suggestion ->
+                                                suggestion.copy(type = PlanningActivityClassifier.classify("${suggestion.title} ${suggestion.source}"))
+                                            }
                                     }
                                     suggestions = found
                                     selectedSuggestions = found.indices.toSet()
