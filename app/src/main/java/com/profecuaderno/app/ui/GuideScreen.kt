@@ -52,10 +52,10 @@ fun GuideScreen(
     var showFileHelp by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    fun handlePdf(uri: Uri?) {
+    fun handleDocument(uri: Uri?) {
         ExternalActivityGuard.active = false
         if (uri == null) {
-            pickerMessage = "No se seleccionó ningún PDF."
+            pickerMessage = "No se seleccionó ningún documento."
             return
         }
 
@@ -77,19 +77,19 @@ fun GuideScreen(
                 "Documento seleccionado. Si Android revoca el acceso más adelante, solo tendrás que seleccionarlo de nuevo."
             }
         } else {
-            pickerMessage = "No pude leer ese archivo. Elige un PDF almacenado en el dispositivo o en un proveedor compatible."
+            pickerMessage = "No pude leer ese archivo. Elige un PDF, CSV, Excel, Word o TXT almacenado en el dispositivo o en un proveedor compatible."
         }
     }
 
     val pickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         ExternalActivityGuard.active = false
-        if (result.resultCode == Activity.RESULT_OK) handlePdf(result.data?.data)
-        else pickerMessage = "No se seleccionó ningún PDF."
+        if (result.resultCode == Activity.RESULT_OK) handleDocument(result.data?.data)
+        else pickerMessage = "No se seleccionó ningún documento."
     }
 
     fun openPicker() {
         pickerMessage = null
-        val chooser = DocumentPickerCompat.chooserIntent(arrayOf("application/pdf"), "Seleccionar PDF")
+        val chooser = DocumentPickerCompat.chooserIntent(DocumentImportPolicy.mimeTypes, "Importar planeación o guía")
         if (!DocumentPickerCompat.canResolve(context, chooser)) {
             showFileHelp = true
             return
@@ -117,7 +117,7 @@ fun GuideScreen(
                         Text("Guía / planeación", style = MaterialTheme.typography.titleLarge)
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text("Aquí puedes conservar la guía, programa o planeación del curso y convertir sus fechas en actividades del calendario.")
+                    Text("Aquí puedes conservar la guía, programa o planeación del curso en PDF, CSV, Excel, Word o TXT y usarla como apoyo para organizar tus actividades.")
                 }
             }
         }
@@ -127,7 +127,7 @@ fun GuideScreen(
                 Button(onClick = { openPicker() }) {
                     Icon(Icons.Default.UploadFile, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Seleccionar PDF")
+                    Text("Importar planeación o guía")
                 }
             } else {
                 ElevatedCard(Modifier.fillMaxWidth()) {
@@ -137,21 +137,21 @@ fun GuideScreen(
                             Button(onClick = {
                                 val uri = Uri.parse(uriString)
                                 val intent = Intent(Intent.ACTION_VIEW).apply {
-                                    setDataAndType(uri, "application/pdf")
+                                    setDataAndType(uri, context.contentResolver.getType(uri) ?: "*/*")
                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 }
                                 ExternalActivityGuard.active = true
                                 runCatching { context.startActivity(intent) }
                                     .onFailure {
                                         ExternalActivityGuard.active = false
-                                        pickerMessage = "No encontré una aplicación compatible para abrir este PDF."
+                                        pickerMessage = "No encontré una aplicación compatible para abrir este documento."
                                     }
                             }) {
                                 Icon(Icons.Default.FolderOpen, null)
                                 Spacer(Modifier.width(6.dp))
                                 Text("Visualizar")
                             }
-                            OutlinedButton(onClick = { openPicker() }) { Text("Cambiar PDF") }
+                            OutlinedButton(onClick = { openPicker() }) { Text("Cambiar documento") }
                         }
                         Button(
                             enabled = !analyzing,
