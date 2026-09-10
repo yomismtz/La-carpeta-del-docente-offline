@@ -1,0 +1,66 @@
+name: Fix direct Android document picker
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-direct-document-picker.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch document launchers
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('app/src/main/java/com/profecuaderno/app/ui/GuideScreen.kt')
+          s = p.read_text()
+          s = s.replace('Intent(Intent.ACTION_GET_CONTENT).apply {', 'Intent(Intent.ACTION_OPEN_DOCUMENT).apply {')
+          s = s.replace('addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)\n        }\n        runCatching { pickerLauncher.launch(Intent.createChooser(intent, "Seleccionar documento")) }', 'addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)\n        }\n        runCatching { pickerLauncher.launch(intent) }')
+          s = s.replace('// ACTION_GET_CONTENT funciona incluso en equipos donde ACTION_OPEN_DOCUMENT no está disponible.\n        ', '')
+          p.write_text(s)
+
+          p = Path('app/src/main/java/com/profecuaderno/app/ui/StudentsScreen.kt')
+          s = p.read_text()
+          old = '''        val mimeTypes = arrayOf("text/csv", "text/plain", "application/vnd.ms-excel", "application/csv", "application/octet-stream")
+        val chooser = DocumentPickerCompat.chooserIntent(mimeTypes, "Seleccionar archivo CSV")
+        if (!DocumentPickerCompat.canResolve(context, chooser)) {
+            showFileHelp = true
+            return
+        }
+        ExternalActivityGuard.active = true
+        runCatching { pickerLauncher.launch(chooser) }
+            .onFailure {
+                ExternalActivityGuard.active = false
+                showFileHelp = true
+            }'''
+          new = '''        val mimeTypes = arrayOf("text/csv", "text/plain", "application/vnd.ms-excel", "application/csv", "text/comma-separated-values", "application/octet-stream")
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        }
+        ExternalActivityGuard.active = true
+        runCatching { pickerLauncher.launch(intent) }
+            .onFailure {
+                ExternalActivityGuard.active = false
+                importMessage = "No se pudo abrir el selector de documentos de Android."
+            }'''
+          if old not in s:
+              raise SystemExit('StudentsScreen expected block not found')
+          s = s.replace(old, new)
+          p.write_text(s)
+          PY
+      - name: Commit fixes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/profecuaderno/app/ui/GuideScreen.kt app/src/main/java/com/profecuaderno/app/ui/StudentsScreen.kt
+          git diff --cached --quiet || git commit -m "Use direct Android document picker"
+          git push
