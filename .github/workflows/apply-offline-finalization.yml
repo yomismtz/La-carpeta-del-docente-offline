@@ -1,0 +1,62 @@
+name: Apply offline finalization
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-offline-finalization.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wire internal file browser
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          # GuideScreen
+          p = Path('app/src/main/java/com/profecuaderno/app/ui/GuideScreen.kt')
+          s = p.read_text()
+          if 'import android.os.Build' not in s:
+              s = s.replace('import android.app.Activity\n', 'import android.app.Activity\nimport android.os.Build\nimport android.os.Environment\n')
+          if 'var showLocalBrowser' not in s:
+              s = s.replace('var pickerMessage by remember { mutableStateOf<String?>(null) }', 'var pickerMessage by remember { mutableStateOf<String?>(null) }\n    var showLocalBrowser by remember { mutableStateOf(false) }')
+          needle = '''    fun openPicker() {\n        pickerMessage = null\n        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {'''
+          repl = '''    fun openPicker() {\n        pickerMessage = null\n        if (Build.VERSION.SDK_INT >= 30 && Environment.isExternalStorageManager()) {\n            showLocalBrowser = true\n            return\n        }\n        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {'''
+          if needle in s:
+              s = s.replace(needle, repl)
+          marker = '    eventTypeToCreate?.let { selectedType ->'
+          if 'LocalFileBrowserDialog(\n            title = "Seleccionar documento"' not in s:
+              dialog = '''    if (showLocalBrowser) {\n        LocalFileBrowserDialog(\n            title = "Seleccionar documento",\n            allowedExtensions = setOf("pdf", "csv", "xls", "xlsx", "doc", "docx", "txt"),\n            onDismiss = { showLocalBrowser = false },\n            onFileSelected = { uri ->\n                showLocalBrowser = false\n                handleDocument(uri)\n            }\n        )\n    }\n\n'''
+              s = s.replace(marker, dialog + marker)
+          p.write_text(s)
+
+          # StudentsScreen
+          p = Path('app/src/main/java/com/profecuaderno/app/ui/StudentsScreen.kt')
+          s = p.read_text()
+          if 'import android.os.Build' not in s:
+              s = s.replace('import android.content.Intent\n', 'import android.content.Intent\nimport android.os.Build\nimport android.os.Environment\n')
+          if 'var showLocalBrowser' not in s:
+              s = s.replace('var importing by remember { mutableStateOf(false) }', 'var importing by remember { mutableStateOf(false) }\n    var showLocalBrowser by remember { mutableStateOf(false) }')
+          needle = '''    fun openCsvPicker() {\n        importMessage = null\n        val mimeTypes = arrayOf'''
+          repl = '''    fun openCsvPicker() {\n        importMessage = null\n        if (Build.VERSION.SDK_INT >= 30 && Environment.isExternalStorageManager()) {\n            showLocalBrowser = true\n            return\n        }\n        val mimeTypes = arrayOf'''
+          if needle in s:
+              s = s.replace(needle, repl)
+          marker = '    if (showNew) StudentDialog('
+          if 'LocalFileBrowserDialog(\n            title = "Seleccionar archivo CSV"' not in s:
+              dialog = '''    if (showLocalBrowser) {\n        LocalFileBrowserDialog(\n            title = "Seleccionar archivo CSV",\n            allowedExtensions = setOf("csv", "txt"),\n            onDismiss = { showLocalBrowser = false },\n            onFileSelected = { uri ->\n                showLocalBrowser = false\n                importUri(uri)\n            }\n        )\n    }\n\n'''
+              s = s.replace(marker, dialog + marker)
+          p.write_text(s)
+          PY
+      - name: Commit source changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/profecuaderno/app/ui/GuideScreen.kt app/src/main/java/com/profecuaderno/app/ui/StudentsScreen.kt
+          git diff --cached --quiet || git commit -m "Wire internal file browser into imports"
+          git push
