@@ -2,6 +2,8 @@ package com.profecuaderno.app.ui
 
 import android.app.Activity
 import android.content.Intent
+import android.os.Build
+import android.os.Environment
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -35,6 +37,7 @@ fun StudentsScreen(db: TeacherDbHelper, period: AcademicPeriod, refresh: Int, on
     var deleting by remember { mutableStateOf<Student?>(null) }
     var importMessage by remember { mutableStateOf<String?>(null) }
     var importing by remember { mutableStateOf(false) }
+    var showLocalBrowser by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -85,6 +88,10 @@ fun StudentsScreen(db: TeacherDbHelper, period: AcademicPeriod, refresh: Int, on
 
     fun openCsvPicker() {
         importMessage = null
+        if (Build.VERSION.SDK_INT >= 30 && Environment.isExternalStorageManager()) {
+            showLocalBrowser = true
+            return
+        }
         val mimeTypes = arrayOf("text/csv", "text/plain", "application/vnd.ms-excel", "application/csv", "text/comma-separated-values", "application/octet-stream")
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
@@ -147,6 +154,18 @@ fun StudentsScreen(db: TeacherDbHelper, period: AcademicPeriod, refresh: Int, on
                 }
             }
         }
+    }
+
+    if (showLocalBrowser) {
+        LocalFileBrowserDialog(
+            title = "Seleccionar archivo CSV",
+            allowedExtensions = setOf("csv", "txt"),
+            onDismiss = { showLocalBrowser = false },
+            onFileSelected = { uri ->
+                showLocalBrowser = false
+                importUri(uri)
+            }
+        )
     }
 
     if (showNew) StudentDialog(

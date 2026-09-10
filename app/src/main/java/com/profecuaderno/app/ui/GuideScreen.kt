@@ -4,6 +4,8 @@ import android.content.Intent
 import android.provider.OpenableColumns
 import android.net.Uri
 import android.app.Activity
+import android.os.Build
+import android.os.Environment
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -49,6 +51,7 @@ fun GuideScreen(
     var selectedSuggestions by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var analysisMessage by remember { mutableStateOf<String?>(null) }
     var pickerMessage by remember { mutableStateOf<String?>(null) }
+    var showLocalBrowser by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     fun handleDocument(uri: Uri?) {
@@ -95,6 +98,10 @@ fun GuideScreen(
 
     fun openPicker() {
         pickerMessage = null
+        if (Build.VERSION.SDK_INT >= 30 && Environment.isExternalStorageManager()) {
+            showLocalBrowser = true
+            return
+        }
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "*/*"
@@ -229,6 +236,18 @@ fun GuideScreen(
         }
 
         item { Spacer(Modifier.height(30.dp)) }
+    }
+
+    if (showLocalBrowser) {
+        LocalFileBrowserDialog(
+            title = "Seleccionar documento",
+            allowedExtensions = setOf("pdf", "csv", "xls", "xlsx", "doc", "docx", "txt"),
+            onDismiss = { showLocalBrowser = false },
+            onFileSelected = { uri ->
+                showLocalBrowser = false
+                handleDocument(uri)
+            }
+        )
     }
 
     eventTypeToCreate?.let { selectedType ->
