@@ -85,16 +85,18 @@ fun StudentsScreen(db: TeacherDbHelper, period: AcademicPeriod, refresh: Int, on
 
     fun openCsvPicker() {
         importMessage = null
-        ExternalActivityGuard.active = true
-        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+        val mimeTypes = arrayOf("text/csv", "text/plain", "application/vnd.ms-excel", "application/csv", "text/comma-separated-values", "application/octet-stream")
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "*/*"
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
         }
-        runCatching { pickerLauncher.launch(Intent.createChooser(intent, "Seleccionar archivo CSV")) }
+        ExternalActivityGuard.active = true
+        runCatching { pickerLauncher.launch(intent) }
             .onFailure {
                 ExternalActivityGuard.active = false
-                importMessage = "Android no pudo abrir un selector de archivos. Instala o habilita una app de archivos y vuelve a intentar."
+                importMessage = "No se pudo abrir el selector de documentos de Android."
             }
     }
 
