@@ -1,0 +1,46 @@
+name: Patch planning OCR UI
+
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-planning-ocr-ui.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update planning UI strings and image extensions
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path('app/src/main/java/com/profecuaderno/app/ui/GuideScreen.kt')
+          s = p.read_text()
+          s = s.replace(
+              'Formato no compatible. Elige PDF, CSV, XLS, XLSX, DOC, DOCX o TXT.',
+              'Formato no compatible. Elige PDF, Word, TXT o una imagen JPG, PNG, WEBP, HEIC/HEIF.'
+          )
+          s = s.replace(
+              'Aquí puedes conservar la guía, programa o planeación del curso en PDF, CSV, Excel, Word o TXT y usarla como apoyo para organizar tus actividades.',
+              'Puedes importar una planeación en PDF, Word, TXT o imagen. La app buscará fechas en el texto y usará reconocimiento OCR cuando el PDF o la imagen no tengan texto extraíble.'
+          )
+          s = s.replace(
+              'No encontré fechas legibles automáticamente. Si el PDF es una imagen escaneada, esta versión no puede extraer su texto.',
+              'No encontré fechas reconocibles. La app revisó el texto disponible y, para PDF o imágenes, también intentó reconocimiento OCR. Revisa que las fechas sean visibles y tengan un formato como 10/09/2026, 10 de septiembre de 2026 o 10 sep.'
+          )
+          s = s.replace(
+              'allowedExtensions = setOf("pdf", "csv", "xls", "xlsx", "doc", "docx", "txt")',
+              'allowedExtensions = setOf("pdf", "doc", "docx", "txt", "jpg", "jpeg", "png", "webp", "heic", "heif")'
+          )
+          p.write_text(s)
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/profecuaderno/app/ui/GuideScreen.kt
+          git diff --cached --quiet || git commit -m "Explain OCR planning analysis and accept images"
+          git push
