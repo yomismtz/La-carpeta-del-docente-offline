@@ -1,0 +1,56 @@
+name: Apply responsive UI improvements
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/apply-responsive-ui.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Adapt offline teacher UI for phones tablets and rotation
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('app/src/main/java/com/profecuaderno/app/ui/ProfileAndHome.kt')
+          s = p.read_text()
+          s = s.replace(
+              'val configuration = LocalConfiguration.current\n    val landscape = configuration.screenWidthDp > configuration.screenHeightDp\n    val columns = if (landscape) 3 else 2',
+              'val configuration = LocalConfiguration.current\n    val columns = when {\n        configuration.screenWidthDp < 360 -> 1\n        configuration.screenWidthDp < 700 -> 2\n        configuration.screenWidthDp < 1000 -> 3\n        else -> 4\n    }'
+          )
+          s = s.replace(
+              'val configuration = LocalConfiguration.current; val landscape = configuration.screenWidthDp > configuration.screenHeightDp; val columns = if (landscape) 3 else 2',
+              'val configuration = LocalConfiguration.current; val columns = when { configuration.screenWidthDp < 360 -> 1; configuration.screenWidthDp < 700 -> 2; configuration.screenWidthDp < 1000 -> 3; else -> 4 }'
+          )
+          p.write_text(s)
+
+          p = Path('app/src/main/java/com/profecuaderno/app/ui/AppShell.kt')
+          s = p.read_text()
+          if 'import androidx.compose.ui.platform.LocalConfiguration' not in s:
+              s = s.replace('import androidx.compose.ui.Alignment\n', 'import androidx.compose.ui.Alignment\nimport androidx.compose.ui.platform.LocalConfiguration\n')
+          s = s.replace(
+              'val period = remember(tick) { db.getActivePeriod() }',
+              'val period = remember(tick) { db.getActivePeriod() }\n    val compactWidth = LocalConfiguration.current.screenWidthDp < 420'
+          )
+          s = s.replace('if (screen == Screen.HOME || screen == Screen.PROFILE) {', 'if (!compactWidth && (screen == Screen.HOME || screen == Screen.PROFILE)) {')
+          s = s.replace(
+              'if (\n                        screen != Screen.HELP && screen != Screen.APPEARANCE && screen != Screen.TRASH &&',
+              'if (\n                        !compactWidth && screen != Screen.HELP && screen != Screen.APPEARANCE && screen != Screen.TRASH &&'
+          )
+          p.write_text(s)
+          PY
+      - name: Commit responsive UI
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app/src/main/java/com/profecuaderno/app/ui/ProfileAndHome.kt app/src/main/java/com/profecuaderno/app/ui/AppShell.kt
+          git diff --cached --quiet || git commit -m "Adapt offline interface for small phones tablets and rotation"
+          git push
