@@ -30,15 +30,9 @@ fun AppPermissionsScreen(onContinue: () -> Unit) {
     var refresh by remember { mutableIntStateOf(0) }
     var infoMessage by remember { mutableStateOf<String?>(null) }
 
-    val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        refresh++
-    }
-    val calendarLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-        refresh++
-    }
-    val legacyFilesLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        refresh++
-    }
+    val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { refresh++ }
+    val calendarLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { refresh++ }
+    val legacyFilesLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { refresh++ }
     val fileSettingsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         ExternalActivityGuard.active = false
         refresh++
@@ -119,11 +113,15 @@ fun AppPermissionsScreen(onContinue: () -> Unit) {
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        modifier = Modifier
+            .fillMaxSize()
+            .navigationBarsPadding()
+            .imePadding()
+            .padding(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Text("Permisos de la aplicación", style = MaterialTheme.typography.headlineSmall)
-        Text("La app solo solicita notificaciones, calendario y archivos. No solicita acceso a tus contactos.")
+        Text("La app solo solicita notificaciones, calendario y archivos.")
 
         PermissionCard("Notificaciones", notificationsGranted, Icons.Default.Notifications) { requestNotification() }
         PermissionCard("Calendario", calendarGranted, Icons.Default.CalendarMonth) { requestCalendar() }
@@ -140,7 +138,11 @@ fun AppPermissionsScreen(onContinue: () -> Unit) {
         }
 
         Spacer(Modifier.weight(1f))
-        Button(onClick = onContinue, modifier = Modifier.fillMaxWidth()) { Text("Continuar") }
+        Button(
+            onClick = onContinue,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
+        ) { Text("Continuar") }
+        Spacer(Modifier.height(4.dp))
     }
 }
 
