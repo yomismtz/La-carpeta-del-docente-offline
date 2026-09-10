@@ -28,8 +28,25 @@ fun AppPermissionsScreen(onContinue: () -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var refresh by remember { mutableIntStateOf(0) }
-    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+    var infoMessage by remember { mutableStateOf<String?>(null) }
+
+    val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         refresh++
+    }
+    val contactsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        refresh++
+    }
+    val legacyFilesLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        refresh++
+    }
+    val fileSettingsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        ExternalActivityGuard.active = false
+        refresh++
+        infoMessage = if (Build.VERSION.SDK_INT >= 30 && Environment.isExternalStorageManager()) {
+            "Acceso a archivos concedido."
+        } else {
+            "El acceso a archivos no fue concedido. Puedes continuar y autorizarlo después."
+        }
     }
 
     DisposableEffect(lifecycleOwner) {
@@ -40,13 +57,15 @@ fun AppPermissionsScreen(onContinue: () -> Unit) {
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        onDispose {
+            ExternalActivityGuard.active = false
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
 
     fun has(permission: String): Boolean =
         ContextCompat.checkSelfPermission(context, permission) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
-    // refresh se lee expresamente para reevaluar el estado al volver de Ajustes.
     val refreshKey = refresh
     val notificationsGranted = remember(refreshKey) {
         Build.VERSION.SDK_INT < 33 || has(Manifest.permission.POST_NOTIFICATIONS)
@@ -62,26 +81,37 @@ fun AppPermissionsScreen(onContinue: () -> Unit) {
 
     fun requestNotification() {
         if (Build.VERSION.SDK_INT >= 33 && !notificationsGranted) {
-            permissionLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
+            runCatching { notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }
+                .onFailure { infoMessage = "No se pudo abrir el permiso de notificaciones." }
         }
     }
 
     fun requestContacts() {
-        if (!contactsGranted) permissionLauncher.launch(arrayOf(Manifest.permission.READ_CONTACTS))
+        if (!contactsGranted) {
+            runCatching { contactsLauncher.launch(Manifest.permission.READ_CONTACTS) }
+                .onFailure { infoMessage = "No se pudo abrir el permiso de contactos." }
+        }
     }
 
     fun requestFiles() {
         if (Build.VERSION.SDK_INT >= 30) {
-            ExternalActivityGuard.active = true
-            val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+            infoMessage = "Android abrirá la pantalla del sistema para autorizar archivos. Activa el permiso y usa Atrás para regresar a la app."
+            val appIntent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
                 data = Uri.parse("package:${context.packageName}")
             }
-            runCatching { context.startActivity(intent) }.onFailure {
-                runCatching { context.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)) }
-                    .onFailure { ExternalActivityGuard.active = false }
-            }
+            ExternalActivityGuard.active = true
+            runCatching { fileSettingsLauncher.launch(appIntent) }
+                .onFailure {
+                    val generalIntent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                    runCatching { fileSettingsLauncher.launch(generalIntent) }
+                        .onFailure {
+                            ExternalActivityGuard.active = false
+                            infoMessage = "No se pudo abrir la configuración de acceso a archivos."
+                        }
+                }
         } else if (!filesGranted) {
-            permissionLauncher.launch(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE))
+            runCatching { legacyFilesLauncher.launch(Manifest.permission.READ_EXTERNAL_STORAGE) }
+                .onFailure { infoMessage = "No se pudo abrir el permiso de archivos." }
         }
     }
 
@@ -90,31 +120,24 @@ fun AppPermissionsScreen(onContinue: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text("Permisos de la aplicación", style = MaterialTheme.typography.headlineSmall)
-        Text("Puedes concederlos ahora o continuar. Para importar archivos sin depender del selector de Google/Android, concede acceso a los archivos del teléfono.")
+        Text("Puedes concederlos uno por uno. La app no debe cerrarse al autorizar notificaciones o contactos. Para archivos, Android abre una pantalla de Ajustes y después debes regresar con Atrás.")
 
-        PermissionCard("Notificaciones", notificationsGranted, Icons.Default.Notifications) {
-            requestNotification()
-        }
-        PermissionCard("Contactos", contactsGranted, Icons.Default.Contacts) {
-            requestContacts()
-        }
-        PermissionCard("Archivos del teléfono", filesGranted, Icons.Default.Folder) {
-            requestFiles()
-        }
+        PermissionCard("Notificaciones", notificationsGranted, Icons.Default.Notifications) { requestNotification() }
+        PermissionCard("Contactos", contactsGranted, Icons.Default.Contacts) { requestContacts() }
+        PermissionCard("Archivos del teléfono", filesGranted, Icons.Default.Folder) { requestFiles() }
 
         Text(
-            if (filesGranted) {
-                "Acceso a archivos: concedido ✓. La app usará su explorador interno."
-            } else {
-                "Acceso a archivos: no concedido. La app intentará el selector estándar de Android como alternativa."
-            },
+            if (filesGranted) "Acceso a archivos: concedido ✓. La app usará su explorador interno."
+            else "Acceso a archivos: no concedido. Puedes continuar y autorizarlo más tarde.",
             style = MaterialTheme.typography.bodySmall
         )
 
-        Spacer(Modifier.weight(1f))
-        Button(onClick = onContinue, modifier = Modifier.fillMaxWidth()) {
-            Text("Continuar")
+        infoMessage?.let {
+            AssistChip(onClick = { infoMessage = null }, label = { Text(it) })
         }
+
+        Spacer(Modifier.weight(1f))
+        Button(onClick = onContinue, modifier = Modifier.fillMaxWidth()) { Text("Continuar") }
     }
 }
 
