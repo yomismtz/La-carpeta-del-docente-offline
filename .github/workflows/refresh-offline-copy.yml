@@ -18,8 +18,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Save refresh workflow
-        run: cp .github/workflows/refresh-offline-copy.yml /tmp/refresh-offline-copy.yml
+      - name: Save offline-only files
+        run: |
+          cp .github/workflows/refresh-offline-copy.yml /tmp/refresh-offline-copy.yml
+          [ -f .github/workflows/pages.yml ] && cp .github/workflows/pages.yml /tmp/pages.yml || true
+          [ -f privacy-policy.html ] && cp privacy-policy.html /tmp/privacy-policy.html || true
+          [ -f index.html ] && cp index.html /tmp/index.html || true
 
       - name: Fetch connected teacher app
         run: git clone --depth 1 https://github.com/yomismtz/ProfeCuaderno.git /tmp/teacher
@@ -44,7 +48,7 @@ jobs:
           strings.write_text('<resources>\n    <string name="app_name">La Carpeta del Docente Offline</string>\n</resources>\n')
 
           readme = Path('README.md')
-          readme.write_text('''# La Carpeta del Docente Offline\n\nVersión local e independiente de La Carpeta del Docente. Mantiene la misma interfaz y funciones docentes, pero no comparte información con El Cuaderno del Estudiante ni con El Escritorio del Director.\n\n- Sin cuentas compartidas.\n- Sin códigos de clase para sincronización.\n- Sin envío de avisos a otras apps.\n- Calificaciones, asistencia, grupos y planeación permanecen en el dispositivo.\n- Conserva respaldo/restauración local, PDF, CSV, temas y seguridad.\n''')
+          readme.write_text('''# La Carpeta del Docente Offline\n\nVersión local e independiente de La Carpeta del Docente. Mantiene la misma interfaz y funciones docentes, pero no comparte información con El Cuaderno del Estudiante ni con El Escritorio del Director.\n\n- Sin cuentas compartidas.\n- Sin códigos de clase para sincronización.\n- Sin envío de avisos a otras apps.\n- Calificaciones, asistencia, grupos, creación de equipos y planeación permanecen en el dispositivo.\n- Conserva respaldo/restauración local, PDF, CSV, temas y seguridad.\n''')
 
           for name in ['EcosystemContract.kt', 'EcosystemLinkContract.kt']:
               p = Path('app/src/main/java/com/profecuaderno/app/data') / name
@@ -71,9 +75,13 @@ jobs:
           </vector>
           XML
 
-      - name: Restore workflows
+      - name: Restore offline workflows and privacy site
         run: |
           cp /tmp/refresh-offline-copy.yml .github/workflows/refresh-offline-copy.yml
+          [ -f /tmp/pages.yml ] && cp /tmp/pages.yml .github/workflows/pages.yml || true
+          [ -f /tmp/privacy-policy.html ] && cp /tmp/privacy-policy.html privacy-policy.html || true
+          [ -f /tmp/index.html ] && cp /tmp/index.html index.html || true
+          rm -f .github/workflows/add-team-formation.yml
           cat > .github/workflows/build-apk.yml <<'YML'
           name: Build Offline Android APK
 
@@ -114,5 +122,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "Build complete offline teacher edition" || exit 0
+          git commit -m "Refresh complete offline teacher edition with team formation" || exit 0
           git push
