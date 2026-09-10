@@ -1,6 +1,5 @@
 package com.profecuaderno.app.ui
 
-import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -81,23 +80,18 @@ fun GuideScreen(
         }
     }
 
-    val pickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+    val pickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         ExternalActivityGuard.active = false
-        if (result.resultCode == Activity.RESULT_OK) handleDocument(result.data?.data)
-        else pickerMessage = "No se seleccionó ningún documento."
+        handleDocument(uri)
     }
 
     fun openPicker() {
         pickerMessage = null
-        val chooser = DocumentPickerCompat.chooserIntent(DocumentImportPolicy.mimeTypes, "Importar planeación o guía")
-        if (!DocumentPickerCompat.canResolve(context, chooser)) {
-            showFileHelp = true
-            return
-        }
         ExternalActivityGuard.active = true
-        runCatching { pickerLauncher.launch(chooser) }
+        runCatching { pickerLauncher.launch(DocumentImportPolicy.mimeTypes) }
             .onFailure {
                 ExternalActivityGuard.active = false
+                pickerMessage = "No pude abrir el selector de documentos de Android. Revisa que la app Archivos/Files del sistema esté habilitada."
                 showFileHelp = true
             }
     }
@@ -228,7 +222,7 @@ fun GuideScreen(
         AlertDialog(
             onDismissRequest = { showFileHelp = false },
             title = { Text("Selector de archivos no disponible") },
-            text = { Text("Android no encontró una aplicación capaz de seleccionar documentos. Habilita o instala un administrador de archivos y vuelve a intentar. También puedes abrir la configuración de esta app desde aquí.") },
+            text = { Text("Android no pudo abrir su selector de documentos. Verifica que la aplicación del sistema Archivos/Files esté habilitada. No necesitas conceder acceso general a todo el almacenamiento para seleccionar un documento.") },
             confirmButton = {
                 TextButton(onClick = {
                     showFileHelp = false
