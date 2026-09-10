@@ -17,6 +17,7 @@ enum class AgendaThemeStyle(val key: String, val title: String, val subtitle: St
     PINK_BLUE("pink_blue", "Rosa azul", "Magenta, azul cielo y ciruela"),
     GRAYSCALE("grayscale", "Escala de grises", "Blanco, carbón y plata"),
     MULTICOLOR("multicolor", "Multicolor", "Índigo, coral, verde y amarillo");
+
     companion object { fun fromKey(key: String?): AgendaThemeStyle? = entries.firstOrNull { it.key == key } }
 }
 
@@ -34,6 +35,7 @@ private fun lightScheme(style: AgendaThemeStyle) = when (style) {
     AgendaThemeStyle.GRAYSCALE -> lightColorScheme(primary=Color(0xFF202124),secondary=Color(0xFF5F6368),tertiary=Color(0xFF9AA0A6),background=Color(0xFFF5F5F5),surface=Color.White,primaryContainer=Color(0xFFE0E0E0),secondaryContainer=Color(0xFFECECEC))
     AgendaThemeStyle.MULTICOLOR -> lightColorScheme(primary=Color(0xFF3F37C9),secondary=Color(0xFFE45756),tertiary=Color(0xFF2A9D65),background=Color(0xFFFFFBF1),surface=Color.White,primaryContainer=Color(0xFFE1DFFF),secondaryContainer=Color(0xFFFFDAD8))
 }
+
 private fun darkScheme(style: AgendaThemeStyle) = when (style) {
     AgendaThemeStyle.GRAPHITE_BLUE -> darkColorScheme(primary=Color(0xFF75D1F0),secondary=Color(0xFFAFC4D6),tertiary=Color(0xFFCFD8DC),background=Color(0xFF0E1519),surface=Color(0xFF151E23),primaryContainer=Color(0xFF123E50))
     AgendaThemeStyle.SUNSET_GARDEN -> darkColorScheme(primary=Color(0xFFFFA277),secondary=Color(0xFF8CD49A),tertiary=Color(0xFFFFD05A),background=Color(0xFF19130D),surface=Color(0xFF241B13),primaryContainer=Color(0xFF5B260C))
@@ -43,11 +45,24 @@ private fun darkScheme(style: AgendaThemeStyle) = when (style) {
     AgendaThemeStyle.GRAYSCALE -> darkColorScheme(primary=Color(0xFFE8EAED),secondary=Color(0xFFBDC1C6),tertiary=Color(0xFF9AA0A6),background=Color(0xFF111111),surface=Color(0xFF1B1B1B),primaryContainer=Color(0xFF333333))
     AgendaThemeStyle.MULTICOLOR -> darkColorScheme(primary=Color(0xFFB8B3FF),secondary=Color(0xFFFFA39F),tertiary=Color(0xFF7CDBAA),background=Color(0xFF151319),surface=Color(0xFF201D25),primaryContainer=Color(0xFF302A73))
 }
+
 private fun appTypography(scale: Float, style: AppFontStyle): Typography {
     val family = when (style) { AppFontStyle.SANS -> FontFamily.SansSerif; AppFontStyle.SERIF -> FontFamily.Serif; AppFontStyle.MONO -> FontFamily.Monospace; AppFontStyle.CURSIVE -> FontFamily.Cursive }
-    val base = Typography(); fun TextStyle.scaled() = copy(fontFamily=family,fontSize=fontSize*scale,lineHeight=lineHeight*scale)
-    return Typography(displayLarge=base.displayLarge.scaled(),displayMedium=base.displayMedium.scaled(),displaySmall=base.displaySmall.scaled(),headlineLarge=base.headlineLarge.scaled(),headlineMedium=base.headlineMedium.scaled(),headlineSmall=base.headlineSmall.scaled(),titleLarge=base.titleLarge.scaled(),titleMedium=base.titleMedium.scaled(),titleSmall=base.titleSmall.scaled(),bodyLarge=base.bodyLarge.scaled(),bodyMedium=base.bodyMedium.scaled(),bodySmall=base.bodySmall.scaled(),labelLarge=base.labelLarge.scaled(),labelMedium=base.labelMedium.scaled(),labelSmall=base.labelSmall.scaled())
+    val base = Typography()
+    fun TextStyle.scaled() = copy(fontFamily = family, fontSize = fontSize * scale, lineHeight = lineHeight * scale)
+    return Typography(
+        displayLarge=base.displayLarge.scaled(), displayMedium=base.displayMedium.scaled(), displaySmall=base.displaySmall.scaled(),
+        headlineLarge=base.headlineLarge.scaled(), headlineMedium=base.headlineMedium.scaled(), headlineSmall=base.headlineSmall.scaled(),
+        titleLarge=base.titleLarge.scaled(), titleMedium=base.titleMedium.scaled(), titleSmall=base.titleSmall.scaled(),
+        bodyLarge=base.bodyLarge.scaled(), bodyMedium=base.bodyMedium.scaled(), bodySmall=base.bodySmall.scaled(),
+        labelLarge=base.labelLarge.scaled(), labelMedium=base.labelMedium.scaled(), labelSmall=base.labelSmall.scaled()
+    )
 }
+
 fun agendaPaperColor(style: AgendaThemeStyle, dark: Boolean = false): Color = if (dark) darkScheme(style).background else lightScheme(style).background
 fun agendaRuleColor(style: AgendaThemeStyle, dark: Boolean = false): Color = if (dark) darkScheme(style).outline.copy(alpha=.28f) else lightScheme(style).outline.copy(alpha=.22f)
-@Composable fun ProfeCuadernoTheme(style: AgendaThemeStyle=AgendaThemeStyle.MINT_LAVENDER,darkMode:Boolean=false,fontScale:Float=1f,fontStyle:AppFontStyle=AppFontStyle.SANS,content:@Composable()->Unit){ MaterialTheme(colorScheme=if(darkMode) darkScheme(style) else lightScheme(style),typography=appTypography(fontScale.coerceIn(.85f,1.35f),fontStyle),content=content) }
+
+@Composable
+fun ProfeCuadernoTheme(style: AgendaThemeStyle = AgendaThemeStyle.MINT_LAVENDER, darkMode: Boolean = false, fontScale: Float = 1f, fontStyle: AppFontStyle = AppFontStyle.SANS, content: @Composable () -> Unit) {
+    MaterialTheme(colorScheme = if (darkMode) darkScheme(style) else lightScheme(style), typography = appTypography(fontScale.coerceIn(.85f, 1.35f), fontStyle), content = content)
+}
