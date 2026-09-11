@@ -9,6 +9,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -19,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.profecuaderno.app.data.AcademicPeriod
 import com.profecuaderno.app.data.Student
@@ -29,6 +32,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun StudentsScreen(db: TeacherDbHelper, period: AcademicPeriod, refresh: Int, onChanged: () -> Unit) {
     val students = remember(refresh, period.id) { db.getStudents(period.id) }
@@ -114,18 +118,27 @@ fun StudentsScreen(db: TeacherDbHelper, period: AcademicPeriod, refresh: Int, on
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { openCsvPicker() }, enabled = !importing) {
+            FlowRow(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(onClick = { openCsvPicker() }, enabled = !importing, modifier = Modifier.heightIn(min = 48.dp)) {
                     Icon(Icons.Default.UploadFile, contentDescription = null)
                     Spacer(Modifier.width(6.dp))
                     Text(if (importing) "Importando…" else "Importar CSV")
                 }
-                FilledTonalButton(onClick = { showNew = true }, enabled = !importing) {
+                FilledTonalButton(onClick = { showNew = true }, enabled = !importing, modifier = Modifier.heightIn(min = 48.dp)) {
                     Icon(Icons.Default.Add, contentDescription = null)
                     Spacer(Modifier.width(6.dp))
                     Text("Nuevo alumno")
                 }
             }
+            Text(
+                "Para nuevos registros escribe primero los apellidos y después el nombre o nombres.",
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+                style = MaterialTheme.typography.bodySmall
+            )
             importMessage?.let {
                 AssistChip(onClick = { importMessage = null }, label = { Text(it) }, modifier = Modifier.padding(horizontal = 16.dp))
             }
@@ -137,15 +150,31 @@ fun StudentsScreen(db: TeacherDbHelper, period: AcademicPeriod, refresh: Int, on
                         item { Spacer(Modifier.height(8.dp)) }
                         items(students, key = { it.id }) { student ->
                             ElevatedCard(Modifier.fillMaxWidth()) {
-                                Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Column(Modifier.weight(1f)) {
-                                        Text(student.name, style = MaterialTheme.typography.titleMedium)
-                                        val second = listOf(student.groupName, student.clinic, student.teamName).filter { it.isNotBlank() }.joinToString(" • ")
-                                        if (second.isNotBlank()) Text(second, style = MaterialTheme.typography.bodySmall)
-                                        if (student.email.isNotBlank()) Text(student.email, style = MaterialTheme.typography.bodySmall)
+                                Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(
+                                        student.name,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 5
+                                    )
+                                    val second = listOf(student.groupName, student.clinic, student.teamName).filter { it.isNotBlank() }.joinToString(" • ")
+                                    if (second.isNotBlank()) Text(second, style = MaterialTheme.typography.bodySmall)
+                                    if (student.email.isNotBlank()) Text(student.email, style = MaterialTheme.typography.bodySmall)
+                                    FlowRow(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        OutlinedButton(onClick = { editing = student }, modifier = Modifier.heightIn(min = 48.dp)) {
+                                            Icon(Icons.Default.Edit, null)
+                                            Spacer(Modifier.width(6.dp))
+                                            Text("Editar")
+                                        }
+                                        OutlinedButton(onClick = { deleting = student }, modifier = Modifier.heightIn(min = 48.dp)) {
+                                            Icon(Icons.Default.Delete, null)
+                                            Spacer(Modifier.width(6.dp))
+                                            Text("Eliminar")
+                                        }
                                     }
-                                    IconButton(onClick = { editing = student }) { Icon(Icons.Default.Edit, "Editar") }
-                                    IconButton(onClick = { deleting = student }) { Icon(Icons.Default.Delete, "Eliminar") }
                                 }
                             }
                         }
@@ -168,7 +197,7 @@ fun StudentsScreen(db: TeacherDbHelper, period: AcademicPeriod, refresh: Int, on
         )
     }
 
-    if (showNew) StudentDialog(
+    if (showNew) StudentSheet(
         title = "Nuevo alumno",
         initial = Student(periodId = period.id, name = ""),
         onDismiss = { showNew = false },
@@ -176,7 +205,7 @@ fun StudentsScreen(db: TeacherDbHelper, period: AcademicPeriod, refresh: Int, on
     )
 
     editing?.let { student ->
-        StudentDialog(
+        StudentSheet(
             title = "Editar alumno",
             initial = student,
             onDismiss = { editing = null },
@@ -208,8 +237,9 @@ fun StudentsScreen(db: TeacherDbHelper, period: AcademicPeriod, refresh: Int, on
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun StudentDialog(title: String, initial: Student, onDismiss: () -> Unit, onSave: (Student) -> Unit) {
+private fun StudentSheet(title: String, initial: Student, onDismiss: () -> Unit, onSave: (Student) -> Unit) {
     var name by remember(initial.id) { mutableStateOf(initial.name) }
     var code by remember(initial.id) { mutableStateOf(initial.studentCode) }
     var email by remember(initial.id) { mutableStateOf(initial.email) }
@@ -220,28 +250,36 @@ private fun StudentDialog(title: String, initial: Student, onDismiss: () -> Unit
     var team by remember(initial.id) { mutableStateOf(initial.teamName) }
     var notes by remember(initial.id) { mutableStateOf(initial.notes) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column(Modifier.fillMaxWidth().heightIn(max = 560.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text("Nombre *") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(code, { code = it }, label = { Text("Matrícula / ID") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(email, { email = it }, label = { Text("Correo") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(phone, { phone = it }, label = { Text("Teléfono") }, modifier = Modifier.fillMaxWidth())
-                DatePickerField(birth, { birth = it }, "Fecha de nacimiento")
-                OutlinedTextField(group, { group = it }, label = { Text("Grupo") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(clinic, { clinic = it }, label = { Text("Sección / salón / laboratorio / clínica") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(team, { team = it }, label = { Text("Equipo") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(notes, { notes = it }, label = { Text("Observaciones") }, modifier = Modifier.fillMaxWidth())
-            }
-        },
-        confirmButton = {
-            TextButton(
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            OutlinedTextField(
+                name,
+                { name = it },
+                label = { Text("Apellidos y nombre(s) *") },
+                supportingText = { Text("Ejemplo: García López María Fernanda") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 1,
+                maxLines = 3
+            )
+            OutlinedTextField(code, { code = it }, label = { Text("Matrícula / ID") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(email, { email = it }, label = { Text("Correo") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(phone, { phone = it }, label = { Text("Teléfono") }, modifier = Modifier.fillMaxWidth())
+            DatePickerField(birth, { birth = it }, "Fecha de nacimiento")
+            OutlinedTextField(group, { group = it }, label = { Text("Grupo") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(clinic, { clinic = it }, label = { Text("Sección / salón / laboratorio / clínica") }, modifier = Modifier.fillMaxWidth(), maxLines = 3)
+            OutlinedTextField(team, { team = it }, label = { Text("Equipo") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(notes, { notes = it }, label = { Text("Observaciones") }, modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 5)
+            Button(
                 enabled = name.isNotBlank(),
-                onClick = { onSave(initial.copy(name = name, studentCode = code, email = email, phone = phone, birthDate = birth, groupName = group, clinic = clinic, teamName = team, notes = notes)) }
+                onClick = { onSave(initial.copy(name = name.trim(), studentCode = code, email = email, phone = phone, birthDate = birth, groupName = group, clinic = clinic, teamName = team, notes = notes)) },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
             ) { Text("Guardar") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
-    )
+            OutlinedButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("Cancelar") }
+            Spacer(Modifier.height(20.dp))
+        }
+    }
 }
