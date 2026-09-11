@@ -5,6 +5,9 @@ on:
   push:
     branches: [ "main", "master" ]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -35,6 +38,19 @@ jobs:
 
       - name: Build release AAB
         run: gradle :app:bundleRelease --stacktrace
+
+      - name: Prepare public APK filename
+        run: cp app/build/outputs/apk/debug/app-debug.apk La-Carpeta-del-Docente-Offline-1.8.1.apk
+
+      - name: Publish downloadable APK release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.8.1 >/dev/null 2>&1; then
+            gh release upload v1.8.1 La-Carpeta-del-Docente-Offline-1.8.1.apk --clobber
+          else
+            gh release create v1.8.1 La-Carpeta-del-Docente-Offline-1.8.1.apk --title "La Carpeta del Docente Offline 1.8.1" --notes "APK de instalación directa de La Carpeta del Docente Offline 1.8.1."
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
