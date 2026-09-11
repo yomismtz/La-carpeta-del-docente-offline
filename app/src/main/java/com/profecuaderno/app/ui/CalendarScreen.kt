@@ -208,7 +208,7 @@ private fun MonthGrid(
     val totalSlots = offset + month.lengthOfMonth()
     val weeks = (totalSlots + 6) / 7
     repeat(weeks) { week ->
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Stretch) {
+        Row(Modifier.fillMaxWidth()) {
             repeat(7) { dayOfWeek ->
                 val slot = week * 7 + dayOfWeek
                 val day = slot - offset + 1
