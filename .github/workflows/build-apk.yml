@@ -10,9 +10,6 @@ on:
 permissions:
   contents: write
 
-env:
-  APP_VERSION: "1.9.1"
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -32,6 +29,17 @@ jobs:
         with:
           gradle-version: '8.13'
 
+      - name: Read app version
+        shell: bash
+        run: |
+          APP_VERSION=$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -n 1)
+          if [ -z "$APP_VERSION" ]; then
+            echo "No se pudo leer versionName de app/build.gradle.kts" >&2
+            exit 1
+          fi
+          echo "APP_VERSION=$APP_VERSION" >> "$GITHUB_ENV"
+          echo "Versión detectada: $APP_VERSION"
+
       - name: Run unit tests
         run: gradle :app:testDebugUnitTest --stacktrace
 
@@ -44,11 +52,13 @@ jobs:
       - name: Build release AAB
         run: gradle :app:bundleRelease --stacktrace
 
-      - name: Prepare public APK filename
+      - name: Prepare public APK files
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        run: cp app/build/outputs/apk/debug/app-debug.apk La-Carpeta-del-Docente-Offline-${APP_VERSION}.apk
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk La-Carpeta-del-Docente-Offline.apk
+          cp app/build/outputs/apk/debug/app-debug.apk La-Carpeta-del-Docente-Offline-${APP_VERSION}.apk
 
-      - name: Publish downloadable APK release
+      - name: Publish versioned APK release
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         env:
           GH_TOKEN: ${{ github.token }}
@@ -56,8 +66,23 @@ jobs:
           if gh release view v${APP_VERSION} >/dev/null 2>&1; then
             gh release upload v${APP_VERSION} La-Carpeta-del-Docente-Offline-${APP_VERSION}.apk --clobber
           else
-            gh release create v${APP_VERSION} La-Carpeta-del-Docente-Offline-${APP_VERSION}.apk --title "La Carpeta del Docente Offline ${APP_VERSION}" --notes "APK de instalación directa de La Carpeta del Docente Offline ${APP_VERSION}."
+            gh release create v${APP_VERSION} La-Carpeta-del-Docente-Offline-${APP_VERSION}.apk \
+              --target "$GITHUB_SHA" \
+              --title "La Carpeta del Docente Offline ${APP_VERSION}" \
+              --notes "APK de instalación directa de La Carpeta del Docente Offline ${APP_VERSION}."
           fi
+
+      - name: Publish rolling web download
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete android-latest --yes --cleanup-tag >/dev/null 2>&1 || true
+          gh release create android-latest La-Carpeta-del-Docente-Offline.apk \
+            --target "$GITHUB_SHA" \
+            --title "La Carpeta del Docente Offline · descarga Android" \
+            --notes "APK Android de prueba generado automáticamente desde main. Versión: ${APP_VERSION}. Commit: ${GITHUB_SHA}" \
+            --prerelease
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
