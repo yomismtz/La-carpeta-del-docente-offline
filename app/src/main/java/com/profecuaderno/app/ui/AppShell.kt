@@ -219,6 +219,8 @@ fun ProfeCuadernoApp(
             }
         }
     }
+
+    TesterUpdateNotice(version = "1.9.1")
 }
 
 @Composable
