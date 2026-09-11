@@ -26,6 +26,8 @@ object PdfReportExporter {
         writer.heading("Resumen")
         writer.line("Alumnos: ${rows.size}")
         writer.line("Rubros configurados: ${categories.size} · Total: ${"%.1f".format(categories.sumOf { it.weight })}%")
+        val attendancePolicy = AttendancePolicyStore.policy(db, period.id)
+        writer.line("Regla de asistencia: ${attendancePolicy.latePerAbsence} retardos = 1 falta · Justificada: ${attendancePolicy.justifiedEffect.label}")
         writer.gap()
 
         rows.forEach { row ->
@@ -47,8 +49,9 @@ object PdfReportExporter {
         val doc = PdfDocument()
         val writer = PdfWriter(doc)
         val df = DecimalFormat("0.0")
-        val counts = db.attendanceCounts(period.id, student.id)
+        val counts = AttendancePolicyStore.aggregatedCounts(db, period.id, student.id)
         val categories = db.getCategories(period.id)
+        val attendancePolicy = AttendancePolicyStore.policy(db, period.id)
 
         writer.title("ProfeCuaderno · Reporte individual")
         writer.heading(student.name)
@@ -66,6 +69,7 @@ object PdfReportExporter {
             "Presentes: ${counts[AttendanceStatus.PRESENT] ?: 0} · Faltas: ${counts[AttendanceStatus.ABSENT] ?: 0} · " +
                 "Retardos: ${counts[AttendanceStatus.LATE] ?: 0} · Justificadas: ${counts[AttendanceStatus.JUSTIFIED] ?: 0}"
         )
+        writer.line("Regla: ${attendancePolicy.latePerAbsence} retardos = 1 falta · Justificada: ${attendancePolicy.justifiedEffect.label}")
         writer.gap()
 
         writer.heading("Evaluación")
