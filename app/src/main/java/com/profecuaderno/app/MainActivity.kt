@@ -14,16 +14,16 @@ import com.profecuaderno.app.notifications.ReminderScheduler
 import com.profecuaderno.app.ui.*
 
 class MainActivity : FragmentActivity() {
-    // La apariencia vuelve a la predeterminada en cada arranque en frío.
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             val context = LocalContext.current
             val appLanguage = remember { AppLanguagePrefs.load(context) }
-            var selectedTheme by remember { mutableStateOf(AgendaThemeStyle.MINT_LAVENDER) }
-            var darkMode by remember { mutableStateOf(false) }
-            var fontScale by remember { mutableFloatStateOf(1f) }
-            var fontStyle by remember { mutableStateOf(AppFontStyle.SANS) }
+            val savedAppearance = remember { AppearancePrefs.load(context) }
+            var selectedTheme by remember { mutableStateOf(savedAppearance.theme) }
+            var darkMode by remember { mutableStateOf(savedAppearance.darkMode) }
+            var fontScale by remember { mutableFloatStateOf(savedAppearance.fontScale) }
+            var fontStyle by remember { mutableStateOf(savedAppearance.fontStyle) }
 
             CompositionLocalProvider(LocalAppLanguage provides appLanguage) {
                 ProfeCuadernoTheme(style = selectedTheme, darkMode = darkMode, fontScale = fontScale, fontStyle = fontStyle) {
@@ -65,6 +65,10 @@ class MainActivity : FragmentActivity() {
                                     darkMode = dark
                                     fontScale = scale
                                     fontStyle = font
+                                    AppearancePrefs.save(
+                                        context,
+                                        AppearanceSettings(style, dark, scale, font)
+                                    )
                                 }
                             )
                         }
