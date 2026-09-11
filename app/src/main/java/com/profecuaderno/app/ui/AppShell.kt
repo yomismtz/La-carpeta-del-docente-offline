@@ -4,17 +4,12 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.FolderDelete
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.profecuaderno.app.data.AcademicPeriod
@@ -187,7 +182,7 @@ fun ProfeCuadernoApp(
                 }
                 Screen.STUDENTS -> RequirePeriod(period) { StudentsScreen(db, period!!, tick, refreshAll) }
                 Screen.TEAMS -> RequirePeriod(period) { TeamFormationScreen(db, period!!, tick, refreshAll) }
-                Screen.ATTENDANCE -> RequirePeriod(period) { AttendanceScreen(db, period!!, tick, refreshAll) }
+                Screen.ATTENDANCE -> RequirePeriod(period) { PolishedAttendanceScreen(db, period!!, tick, refreshAll) }
                 Screen.EVALUATION -> RequirePeriod(period) { SafeEvaluationScreen(db, period!!, tick, refreshAll) }
                 Screen.QUICK_GRADE -> RequirePeriod(period) { QuickGradeScreen(db, period!!, tick, refreshAll) }
                 Screen.RUBRICS -> RequirePeriod(period) { RubricsScreen(db, period!!, tick, refreshAll) }
@@ -195,7 +190,7 @@ fun ProfeCuadernoApp(
                 Screen.GROUP_FILES -> RequirePeriod(period) { GroupFilesScreen(period!!) }
                 Screen.NOTES -> NotesScreen()
                 Screen.CALENDAR -> CalendarScreen(db, tick, refreshAll)
-                Screen.REPORTS -> RequirePeriod(period) { ReportsScreen(db, period!!, tick) }
+                Screen.REPORTS -> RequirePeriod(period) { PolishedReportsScreen(db, period!!, tick, refreshAll) }
                 Screen.PROFILE -> ProfileScreen(
                     teacher = teacher,
                     onSecurity = { screen = Screen.SECURITY },
@@ -224,6 +219,8 @@ fun ProfeCuadernoApp(
             }
         }
     }
+
+    TesterUpdateNotice(version = "1.9.1")
 }
 
 @Composable

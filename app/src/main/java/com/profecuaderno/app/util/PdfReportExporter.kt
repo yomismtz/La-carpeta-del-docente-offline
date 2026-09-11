@@ -9,6 +9,8 @@ import androidx.core.content.FileProvider
 import com.profecuaderno.app.data.*
 import java.io.File
 import java.text.DecimalFormat
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 object PdfReportExporter {
 
@@ -22,6 +24,7 @@ object PdfReportExporter {
         writer.title("ProfeCuaderno · Reporte de grupo")
         writer.line("${period.name} · ${period.type}")
         writer.line("${period.startDate} → ${period.endDate}")
+        writer.line("Generado: ${generatedAt()}")
         writer.gap()
         writer.heading("Resumen")
         writer.line("Alumnos: ${rows.size}")
@@ -34,7 +37,11 @@ object PdfReportExporter {
             writer.heading(row.student.name)
             writer.line("Asistencia: ${"%.1f".format(row.attendancePercent)}%")
             categories.forEach { cat ->
-                writer.line("${cat.name}: ${"%.1f".format(db.categoryScore(period.id, row.student.id, cat))}/100 · peso ${"%.1f".format(cat.weight)}%")
+                val score = db.categoryScoreOrNull(period.id, row.student.id, cat)
+                writer.line(
+                    if (score == null) "${cat.name}: Sin evaluar · peso ${"%.1f".format(cat.weight)}%"
+                    else "${cat.name}: ${"%.1f".format(score)}/100 · peso ${"%.1f".format(cat.weight)}%"
+                )
             }
             writer.line("Final: ${"%.1f".format(row.finalPercent)}% · ${"%.2f".format(row.finalPercent / 10.0)}/10")
             writer.gap()
@@ -52,6 +59,7 @@ object PdfReportExporter {
         val counts = AttendancePolicyStore.aggregatedCounts(db, period.id, student.id)
         val categories = db.getCategories(period.id)
         val attendancePolicy = AttendancePolicyStore.policy(db, period.id)
+        val incidents = AttendanceHistoryStore.incidentsForStudent(db, period.id, student.id)
 
         writer.title("ProfeCuaderno · Reporte individual")
         writer.heading(student.name)
@@ -60,7 +68,9 @@ object PdfReportExporter {
         if (student.phone.isNotBlank()) writer.line("Teléfono: ${student.phone}")
         if (student.birthDate.isNotBlank()) writer.line("Fecha de nacimiento: ${student.birthDate}")
         if (student.teamName.isNotBlank()) writer.line("Equipo: ${student.teamName}")
+        if (student.notes.isNotBlank()) writer.line("Observaciones: ${student.notes}")
         writer.line("Grupo: ${period.name}")
+        writer.line("Generado: ${generatedAt()}")
         writer.gap()
 
         writer.heading("Asistencia")
@@ -70,11 +80,22 @@ object PdfReportExporter {
                 "Retardos: ${counts[AttendanceStatus.LATE] ?: 0} · Justificadas: ${counts[AttendanceStatus.JUSTIFIED] ?: 0}"
         )
         writer.line("Regla: ${attendancePolicy.latePerAbsence} retardos = 1 falta · Justificada: ${attendancePolicy.justifiedEffect.label}")
+        writer.gap(4f)
+
+        writer.heading("Fechas con incidencias")
+        if (incidents.isEmpty()) {
+            writer.line("Sin faltas, retardos o justificadas registradas.")
+        } else {
+            incidents.forEach { entry ->
+                writer.line("${entry.date} · ${pdfAttendanceStatus(entry.status)} · ${entry.title.ifBlank { "Clase" }}")
+            }
+        }
         writer.gap()
 
         writer.heading("Evaluación")
         categories.forEach { cat ->
             val mode = runCatching { EvaluationMode.valueOf(cat.mode) }.getOrDefault(EvaluationMode.DIRECT)
+            val categoryScore = db.categoryScoreOrNull(period.id, student.id, cat)
             writer.line("${cat.name} · ${df.format(cat.weight)}% · ${mode.label}")
             when (mode) {
                 EvaluationMode.AVERAGE -> {
@@ -85,13 +106,20 @@ object PdfReportExporter {
                 }
                 EvaluationMode.RUBRIC -> {
                     db.getRubricCriteria(cat.id).forEach { criterion ->
-                        writer.line("   ${criterion.name} (${df.format(criterion.weight)}%): ${df.format(db.getRubricMark(student.id, criterion.id))}")
+                        val mark = db.getRubricMarkOrNull(student.id, criterion.id)
+                        writer.line("   ${criterion.name} (${df.format(criterion.weight)}%): ${mark?.let { df.format(it) } ?: "Pendiente"}")
                     }
                 }
-                EvaluationMode.ATTENDANCE -> writer.line("   Resultado automático: ${df.format(db.attendancePercentage(period.id, student.id))}/100")
-                EvaluationMode.DIRECT -> writer.line("   Resultado: ${df.format(db.getGrade(student.id, cat.id))}/100")
+                EvaluationMode.ATTENDANCE -> writer.line(
+                    if (categoryScore == null) "   Resultado automático: Sin registros"
+                    else "   Resultado automático: ${df.format(categoryScore)}/100"
+                )
+                EvaluationMode.DIRECT -> writer.line(
+                    if (categoryScore == null) "   Resultado: Sin evaluar"
+                    else "   Resultado: ${df.format(categoryScore)}/100"
+                )
             }
-            writer.line("   Promedio del rubro: ${df.format(db.categoryScore(period.id, student.id, cat))}/100")
+            writer.line("   Promedio del rubro: ${categoryScore?.let { "${df.format(it)}/100" } ?: "Sin evaluar"}")
             writer.gap(4f)
         }
 
@@ -100,6 +128,20 @@ object PdfReportExporter {
 
         writer.finish(file)
         share(context, file)
+    }
+
+    private fun generatedAt(): String = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))
+
+    private fun pdfAttendanceStatus(status: AttendanceStatus): String = when (status) {
+        AttendanceStatus.ABSENT -> "Falta"
+        AttendanceStatus.LATE -> "Retardo"
+        AttendanceStatus.LATE_PENALTY -> "Retardo (completa equivalencia a falta)"
+        AttendanceStatus.JUSTIFIED -> "Justificada (no contabilizada)"
+        AttendanceStatus.JUSTIFIED_PRESENT -> "Justificada (cuenta como asistencia)"
+        AttendanceStatus.JUSTIFIED_LATE -> "Justificada (cuenta como retardo)"
+        AttendanceStatus.JUSTIFIED_LATE_PENALTY -> "Justificada (retardo que completa equivalencia a falta)"
+        AttendanceStatus.JUSTIFIED_ABSENT -> "Justificada (cuenta como falta)"
+        AttendanceStatus.PRESENT -> "Presente"
     }
 
     private fun reportDir(context: Context): File = File(context.cacheDir, "reports").apply { mkdirs() }
