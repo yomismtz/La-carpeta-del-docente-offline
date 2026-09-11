@@ -1,4 +1,4 @@
-name: Final offline polish
+name: Validate Offline Android
 
 on:
   push:
@@ -7,121 +7,34 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  patch:
+  validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Patch final offline behavior
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
+      - name: Checkout
+        uses: actions/checkout@v4
 
-          p = Path('app/src/main/java/com/profecuaderno/app/util/PlanningGuideAnalyzer.kt')
-          s = p.read_text()
-          pattern = re.compile(r'    private fun classify\(line: String\): String \{.*?\n    \}\n\n    private fun monthNumber', re.S)
-          replacement = '''    private fun classify(line: String): String {
-        val s = normalize(line)
-        fun hasAny(vararg terms: String) = terms.any { it in s }
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
 
-        return when {
-            hasAny("laboratorio", "lab ", "lab.", "sesion de lab", "practica de laboratorio", "practica laboratorio") -> "LABORATORIO"
-            hasAny("examen final", "examen parcial", "examen ordinario", "examen extraordinario", "examen", "prueba escrita", "prueba oral", "quiz", "cuestionario evaluativo") -> "EXAMEN"
-            hasAny("evaluacion modular", "evaluacion del proyecto", "evaluacion de proyecto", "evaluacion final del curso", "evaluacion del curso") -> "EVALUACION_MODULAR"
-            hasAny("evaluacion parcial", "parcial", "evaluacion", "evaluar") -> "EVALUACION_PARCIAL"
-            hasAny("practica clinica", "practica preclinica", "practica", "taller practico", "ejercicio practico") -> "PRACTICA"
-            hasAny("exposicion modular", "presentacion de investigacion", "presentacion del proyecto", "exposicion de proyecto") -> "EXPOSICION_MODULAR"
-            hasAny("exposicion", "presentacion oral", "presentacion") -> "EXPOSICION"
-            hasAny("investigacion modular", "proyecto de investigacion", "trabajo de investigacion", "investigacion", "proyecto final") -> "INVESTIGACION_MODULAR"
-            hasAny("maqueta", "modelo didactico", "prototipo") -> "MAQUETA"
-            hasAny("entrega", "fecha limite", "fecha de entrega", "tarea", "evidencia", "portafolio") -> "ENTREGA"
-            hasAny("docente invitado", "profesor invitado", "maestro invitado", "ponente", "conferencista", "especialista invitado") -> "DOCENTE_INVITADO"
-            hasAny("visita", "recorrido") -> "VISITA"
-            hasAny("salida", "excursion", "actividad externa", "practica de campo", "trabajo de campo") -> "SALIDA"
-            else -> "TEMA_CLASE"
-        }
-    }
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
 
-    private fun monthNumber'''
-          s, n = pattern.subn(replacement, s)
-          if n != 1:
-              raise SystemExit(f'Planning classifier replacement count={n}')
-          p.write_text(s)
+      - name: Unit tests
+        run: gradle :app:testDebugUnitTest --stacktrace
 
-          p = Path('app/src/main/java/com/profecuaderno/app/ui/GuideScreen.kt')
-          s = p.read_text()
-          if 'import com.profecuaderno.app.notifications.ReminderScheduler' not in s:
-              s = s.replace('import com.profecuaderno.app.data.TeacherDbHelper\n', 'import com.profecuaderno.app.data.TeacherDbHelper\nimport com.profecuaderno.app.notifications.ReminderScheduler\nimport com.profecuaderno.app.util.SystemCalendarSync\n')
-          s = s.replace(
-              'Text("Puedes importar una planeación en PDF, Word, TXT o imagen. La app buscará fechas en el texto y usará reconocimiento OCR cuando el PDF o la imagen no tengan texto extraíble.")',
-              'Text("Puedes importar una planeación en PDF, Word, TXT o imagen. La app detectará fechas, usará OCR cuando haga falta y clasificará automáticamente exámenes, laboratorios, prácticas, evaluaciones, exposiciones, entregas, proyectos, visitas y otras actividades.")'
-          )
-          old = '''            onSave = {
-                db.saveEvent(it)
-                eventTypeToCreate = null
-                onChanged()
-            }'''
-          new = '''            onSave = {
-                db.saveEvent(it)
-                SystemCalendarSync.addEvent(context, it.date, it.title, period.name, eventTypeLabel(it.type), it.notes)
-                ReminderScheduler.ensureDaily(context)
-                eventTypeToCreate = null
-                onChanged()
-            }'''
-          if old not in s:
-              raise SystemExit('Guide manual save block not found')
-          s = s.replace(old, new, 1)
-          old = '''                        selectedSuggestions.sorted().forEach { index ->
-                            val suggestion = suggestions[index]
-                            db.saveEvent(CalendarEvent(0, period.id, suggestion.title, suggestion.date, "Detectado desde la guía / planeación", suggestion.type))
-                        }
-                        analysisMessage = "Se agregaron ${selectedSuggestions.size} fechas al calendario."'''
-          new = '''                        selectedSuggestions.sorted().forEach { index ->
-                            val suggestion = suggestions[index]
-                            val event = CalendarEvent(0, period.id, suggestion.title, suggestion.date, "Detectado desde la guía / planeación", suggestion.type)
-                            db.saveEvent(event)
-                            SystemCalendarSync.addEvent(context, event.date, event.title, period.name, eventTypeLabel(event.type), event.notes)
-                        }
-                        ReminderScheduler.ensureDaily(context)
-                        analysisMessage = "Se agregaron ${selectedSuggestions.size} fechas al calendario y quedaron enlazadas con los recordatorios."'''
-          if old not in s:
-              raise SystemExit('Guide detected save block not found')
-          s = s.replace(old, new, 1)
-          p.write_text(s)
+      - name: Android lint
+        run: gradle :app:lintDebug --stacktrace
 
-          p = Path('app/src/main/java/com/profecuaderno/app/ui/CalendarScreen.kt')
-          s = p.read_text()
-          if 'import com.profecuaderno.app.notifications.ReminderScheduler' not in s:
-              s = s.replace('import com.profecuaderno.app.data.TrashStore\n', 'import com.profecuaderno.app.data.TrashStore\nimport com.profecuaderno.app.notifications.ReminderScheduler\nimport com.profecuaderno.app.util.SystemCalendarSync\n')
-          if 'import androidx.compose.ui.platform.LocalContext' not in s:
-              s = s.replace('import androidx.compose.ui.Modifier\n', 'import androidx.compose.ui.Modifier\nimport androidx.compose.ui.platform.LocalContext\n')
-          if 'val context = LocalContext.current' not in s:
-              s = s.replace('fun CalendarScreen(db: TeacherDbHelper, refresh: Int, onChanged: () -> Unit) {\n', 'fun CalendarScreen(db: TeacherDbHelper, refresh: Int, onChanged: () -> Unit) {\n    val context = LocalContext.current\n')
-          old = '            onSave = { db.saveEvent(it); showNew = false; onChanged() }'
-          new = '''            onSave = {
-                db.saveEvent(it)
-                val groupName = groups.firstOrNull { group -> group.id == it.periodId }?.name ?: "Grupo"
-                SystemCalendarSync.addEvent(context, it.date, it.title, groupName, eventTypeLabel(it.type), it.notes)
-                ReminderScheduler.ensureDaily(context)
-                showNew = false
-                onChanged()
-            }'''
-          if old not in s:
-              raise SystemExit('Calendar save block not found')
-          s = s.replace(old, new, 1)
-          p.write_text(s)
-          PY
+      - name: Build debug APK
+        run: gradle :app:assembleDebug --stacktrace
 
-      - name: Commit final source changes
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/src/main/java/com/profecuaderno/app/util/PlanningGuideAnalyzer.kt app/src/main/java/com/profecuaderno/app/ui/GuideScreen.kt app/src/main/java/com/profecuaderno/app/ui/CalendarScreen.kt
-          git diff --cached --quiet || git commit -m "Classify planning dates and link calendar reminders"
-          git push
-
-# run-final
+      - name: Build release AAB
+        run: gradle :app:bundleRelease --stacktrace
