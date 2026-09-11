@@ -36,8 +36,13 @@ data class Student(
 enum class AttendanceStatus(val label: String, val factor: Double) {
     PRESENT("Asistencia", 1.0),
     ABSENT("Falta", 0.0),
-    LATE("Retardo", 0.5),
-    JUSTIFIED("Justificada", 1.0)
+    LATE("Retardo", 1.0),
+    LATE_PENALTY("Retardo", 0.0),
+    JUSTIFIED("Justificada", 1.0),
+    JUSTIFIED_PRESENT("Justificada", 1.0),
+    JUSTIFIED_LATE("Justificada", 1.0),
+    JUSTIFIED_LATE_PENALTY("Justificada", 0.0),
+    JUSTIFIED_ABSENT("Justificada", 0.0)
 }
 
 data class AttendanceSession(
