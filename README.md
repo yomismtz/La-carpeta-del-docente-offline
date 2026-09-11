@@ -23,7 +23,17 @@ Esta revisión consolida las observaciones de los testers antes de la siguiente 
 - formularios extensos desplazables para mejorar su uso con fuentes grandes;
 - `versionCode 15`, `versionName 1.9.1`.
 
-La actualización mantiene la base de datos y los registros existentes. No requiere borrar ni reinstalar la aplicación.
+La actualización mantiene la base de datos y los registros existentes. No requiere borrar ni reinstalar la aplicación cuando se utiliza una compilación firmada compatible.
+
+## Descarga Android
+
+La página oficial ofrece un enlace estable al APK más reciente:
+
+https://github.com/yomismtz/La-carpeta-del-docente-offline/releases/download/android-latest/La-Carpeta-del-Docente-Offline.apk
+
+El workflow `.github/workflows/build-apk.yml` se ejecuta cada vez que se aprueban cambios en `main`. Después de pruebas, lint y compilación, reemplaza automáticamente el APK de la release `android-latest`. Por eso la web puede conservar siempre el mismo enlace sin editarlo en cada actualización.
+
+También se conserva una release identificada con el `versionName` actual para mantener una referencia de cada versión publicada.
 
 ## Características
 
